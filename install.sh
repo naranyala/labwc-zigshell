@@ -90,100 +90,92 @@ esac
 
 echo -e "  Selected: ${CYAN}${LAUNCHER_DESC}${NC}"
 
-# 1. Dependency Resolution Menu
-if [ -f "${SCRIPT_DIR}/install-distribution.sh" ] && [ -f "${SCRIPT_DIR}/build-ocws-core.sh" ]; then
-    echo -e "\n  ${GREEN}✓${NC} Installers detected."
-    echo -e "  ${CYAN}=== Dependency Resolution ===${NC}"
-    echo -e "    1) Auto Install (Use package manager for standard deps)"
-    echo -e "    2) Compile Core (Build labwc, sfwbar, fuzzel from source)"
-    echo -e "    3) Skip (Just deploy dotfiles)"
-    echo -e "\n  Default: 1 (Auto Install)"
-    echo -n "    Enter choice [1-3]: "
+# -------------------------------------------------------------------
+# Stage 3 — Mode-Aware Dependency Resolution
+# -------------------------------------------------------------------
 
-    read -r choice
+# Determine which engines are needed for this selection
+CORE_ENGINES="labwc sfwbar $LAUNCHER"
+SHELL_ENGINE=""
+case "$MODE" in
+    dms)        SHELL_ENGINE="dms" ;;
+    crystaldock) SHELL_ENGINE="crystal-dock" ;;
+    noctalia)   SHELL_ENGINE="sfwbar" ;;
+esac
 
-    case "${choice:-1}" in
-        1)
-            echo -e "\n${CYAN}==>${NC} Starting distribution package installer..."
-            bash "${SCRIPT_DIR}/install-distribution.sh" "$@"
-            ;;
-        2)
-            echo -e "\n${CYAN}==>${NC} Starting source compilation for core engines..."
-            bash "${SCRIPT_DIR}/build-ocws-core.sh" all
-            ;;
-        *)
-            echo -e "\n${CYAN}==>${NC} Skipping standard dependency resolution..."
-            ;;
-    esac
+# Check current status of each engine
+check_status() {
+    command -v "$1" >/dev/null 2>&1 && echo "✓" || echo "✗"
+}
 
-    # Handle custom/community shells
-    if [[ "$MODE" == "dms" || "$MODE" == "crystaldock" ]]; then
-        echo -e "\n${YELLOW}⚠${NC} Your chosen shell mode (${MODE}) requires a custom engine."
-        echo -n "  Would you like to automatically clone and compile it now? [y/N]: "
-        read -r build_community
-        if [[ "$build_community" =~ ^[Yy]$ ]]; then
-            bash "${SCRIPT_DIR}/build-ocws-core.sh" "$MODE"
+echo -e "\n  ${CYAN}Engine Status:${NC}"
+echo -e "    labwc        $(check_status labwc)"
+echo -e "    sfwbar       $(check_status sfwbar)"
+echo -e "    $LAUNCHER       $(check_status $LAUNCHER)"
+if [ -n "$SHELL_ENGINE" ]; then
+    echo -e "    $SHELL_ENGINE  $(check_status $SHELL_ENGINE)"
+fi
+
+echo -e "\n  ${CYAN}How to proceed:${NC}"
+echo -e "    1) Auto-setup — install packages from repos + build unfound deps"
+echo -e "    2) Configs only — just deploy dotfiles (I'll handle deps)"
+echo -n "  Enter choice [1-2] (default: 1): "
+read -r dep_choice
+
+case "${dep_choice:-1}" in
+    1)
+        # Auto-setup: distro packages first, then community builds
+        if [ -f "${SCRIPT_DIR}/install-distribution.sh" ]; then
+            echo -e "\n${CYAN}==>${NC} Installing packages from distro repos..."
+            bash "${SCRIPT_DIR}/install-distribution.sh" || echo -e "  ${YELLOW}⚠${NC} Package install had issues, continuing..."
         else
-            echo -e "  Skipping. You will need to install it manually."
+            echo -e "\n${YELLOW}⚠${NC} Distro installer not found. Install packages manually:"
+            echo -e "    ./install-distribution.sh"
+            echo -e "    or see docs/distro-packages.md"
         fi
-    elif [[ "$MODE" == "noctalia" ]]; then
-        echo -e "\n${YELLOW}⚠${NC} Noctalia is a custom wrapper that requires manual setup."
-    fi
-fi
+
+        # Mode-specific builds
+        need_build=""
+        ! command -v dms >/dev/null 2>&1 && need_build="$need_build dms"
+        ! command -v crystal-dock >/dev/null 2>&1 && need_build="$need_build crystal-dock"
+
+        if [ -n "$need_build" ]; then
+            echo -e "\n${YELLOW}⚠${NC} Unfound engines:${need_build}"
+            echo -n "  Build them from source now? [y/N]: "
+            read -r build_now
+            if [[ "$build_now" =~ ^[Yy]$ ]] && [ -f "${SCRIPT_DIR}/build-ocws-core.sh" ]; then
+                for engine in $need_build; do
+                    bash "${SCRIPT_DIR}/build-ocws-core.sh" "$engine"
+                done
+            else
+                for engine in $need_build; do
+                    case "$engine" in
+                        dms)
+                            echo -e "  dms:    git clone https://github.com/DankShrine/dms.git && cd dms && make && sudo make install"
+                            ;;
+                        crystal-dock)
+                            echo -e "  crystal-dock: see https://github.com/crystal-dock/crystal-dock"
+                            ;;
+                    esac
+                done
+            fi
+        fi
+        ;;
+    *)
+        echo -e "\n${YELLOW}⚠${NC} Skipping dependency installation."
+        echo -e "  Required engines you'll need to install manually:"
+        for engine in labwc sfwbar $LAUNCHER $SHELL_ENGINE; do
+            [ -n "$engine" ] && ! command -v "$engine" >/dev/null 2>&1 && echo -e "    - $engine"
+        done
+        echo -e "  See: docs/distro-packages.md"
+        ;;
+esac
 
 # -------------------------------------------------------------------
-# Quick Installer
-# Manual dependency installation and configuration deployment
+# Deploy Configurations
 # -------------------------------------------------------------------
 
-# 1. Dependency Check
-info "Checking for required dependencies..."
-MISSING=""
-command -v labwc >/dev/null 2>&1 || MISSING="$MISSING labwc"
-command -v sfwbar >/dev/null 2>&1 || MISSING="$MISSING sfwbar"
-command -v "$LAUNCHER" >/dev/null 2>&1 || MISSING="$MISSING $LAUNCHER"
-
-if [ -n "$MISSING" ]; then
-    echo -e "\n${YELLOW}⚠${NC} Missing engines:$MISSING"
-    echo -e "  ${RED}Options:${NC}"
-    echo -e "    1) Install via package manager (${SCRIPT_DIR}/install-distribution.sh)"
-    echo -e "    2) Build from source (${SCRIPT_DIR}/build-ocws-core.sh all)"
-    echo -e "\n  Press [ENTER] to continue anyway, or Ctrl+C to cancel."
-    read -r
-fi
-
-if [[ "$MODE" == "dms" ]] && ! command -v dms >/dev/null 2>&1; then
-    echo -e "\n${YELLOW}⚠${NC} Dank Material Shell (dms) is missing!"
-    echo -e "  This is a community shell that requires manual installation."
-    echo -e "  Recommendation: Compile it from source (e.g., https://github.com/dankshrine/dms)"
-    echo -e "\n  Press [ENTER] to continue anyway, or Ctrl+C to cancel."
-    read -r
-fi
-
-if [[ "$MODE" == "noctalia" ]]; then
-    MISSING_NOCTALIA=""
-    command -v noctalia >/dev/null 2>&1 || MISSING_NOCTALIA="noctalia "
-    command -v sfwbar >/dev/null 2>&1 || MISSING_NOCTALIA+="sfwbar"
-    
-    if [ -n "$MISSING_NOCTALIA" ]; then
-        echo -e "\n${YELLOW}⚠${NC} Missing dependencies for Noctalia: ${MISSING_NOCTALIA}"
-        echo -e "  Noctalia is a custom shell that requires manual compilation."
-        echo -e "  Recommendation: Build from the official Noctalia repository."
-        echo -e "\n  Press [ENTER] to continue anyway, or Ctrl+C to cancel."
-        read -r
-    fi
-fi
-
-if [[ "$MODE" == "crystaldock" ]]; then
-    if ! command -v crystal-dock >/dev/null 2>&1; then
-        echo -e "\n${YELLOW}⚠${NC} crystal-dock is not installed."
-        echo -e "  Recommendation: Clone and build from https://github.com/igrekster/crystal-dock"
-        echo -e "\n  Press [ENTER] to continue anyway, or Ctrl+C to cancel."
-        read -r
-    fi
-fi
-
-# 1.5 Confirmation Prompt
+# Pre-deploy confirmation
 echo -e "\n${YELLOW}⚠ WARNING: This will deploy configurations to ~/.config/ and ~/.local/bin/${NC}"
 echo -e "  Mode: ${CYAN}${MODE_DESC}${NC}"
 echo -e "  Launcher: ${CYAN}${LAUNCHER_DESC}${NC}"
@@ -199,20 +191,20 @@ case "$MODE" in
         echo -e "  ${CYAN}  OCWS:${NC} full bar config, widgets, plugins, themes"
         ;;
     crystaldock)
-        echo -e "  Shell: crystal-dock dock + sfwbar single statusbar (${CYAN}requires crystal-dock${NC})"
+        echo -e "  Shell: crystal-dock dock + sfwbar single statusbar"
         echo -e "  ${CYAN}  OCWS:${NC} single top statusbar via sfwbar-full.config"
         ;;
     dms)
-        echo -e "  Shell: DankMaterialShell (${CYAN}requires dms${NC})"
+        echo -e "  Shell: DankMaterialShell"
         echo -e "  ${CYAN}  OCWS:${NC} infrastructure only (no sfwbar bars)"
         ;;
     noctalia)
-        echo -e "  Shell: Noctalia (${CYAN}requires sfwbar${NC})"
+        echo -e "  Shell: Noctalia"
         echo -e "  ${CYAN}  OCWS:${NC} infrastructure only (no sfwbar bars)"
         ;;
 esac
 
-echo -n "  Are you sure you want to proceed? [y/N]: "
+echo -n "  Deploy now? [y/N]: "
 read -r confirm
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
     echo -e "\n  Installation aborted."
