@@ -166,7 +166,7 @@ fi
 
 # Fix tooltips in ocws-settings
 info "Fixing ocws-settings.c markup tooltips..."
-cd /media/naranyala/Data/projects-remote/labwc-fuzzel-sfwbar
+cd "$(dirname "${BASH_SOURCE[0]}")"
 if ! grep -q 'make_tooltip_row' src/ocws-settings.c; then
     cat > src/ocws-tooltip.c << 'TOOLTIP_EOF'
 static GtkWidget* make_tooltip_row(const char *title, const char *subtitle, const char *tooltip) {

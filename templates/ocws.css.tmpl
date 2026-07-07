@@ -32,6 +32,23 @@ grid#bottombar {
 }
 
 /* ============================================================
+ * Switcher (OSD popup for Alt+Tab and Super+Number)
+ * ============================================================ */
+
+window#switcher {
+  background-color: alpha({{COLOR_BG}}, 0.95);
+  color: {{COLOR_FG}};
+  border: 1px solid alpha({{COLOR_BORDER}}, 0.4);
+  border-radius: 10px;
+  padding: 40px;
+  -GtkWidget-hexpand: true;
+}
+
+grid#switcher_item label {
+  color: {{COLOR_FG}};
+}
+
+/* ============================================================
  * Typography
  * ============================================================ */
 

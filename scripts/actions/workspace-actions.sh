@@ -269,7 +269,9 @@ execute_action() {
 
 # Execute based on argument
 MODE="${1:-list}"
-shift
+if [ $# -gt 0 ]; then
+    shift
+fi
 
 # Main execution logic
 case "$MODE" in

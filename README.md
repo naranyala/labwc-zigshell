@@ -2,6 +2,44 @@
 
 A high-performance, purely C-native Wayland desktop environment built on `labwc`, `sfwbar`, and `fuzzel`. By strictly adhering to a C and GTK3 foundation, OCWS delivers a translucent glassmorphic aesthetic with zero JavaScript, Electron, or Qt runtime overhead.
 
+## Philosophy
+
+OCWS stands where two lineages meet: **DankMaterialShell** proved that a Wayland desktop can feel deliberate, designed, and opinionated — a single cohesive experience instead of a pile of duct-taped configs. **Noctalia Shell** proved that a desktop can be *quiet by design* — minimal, unobtrusive, getting out of your way while still being deeply configurable.
+
+We took both ideas seriously, then built on C and GTK3 because we believe performance is not a feature you bolt on later — it is the foundation everything else rests on. No JavaScript runtime, no Electron, no QML virtual machine. Just native code, the Wayland protocol, and a modular architecture that any programmer can understand, debug, and extend in an afternoon.
+
+### What we drew from DankMaterialShell
+
+DankMaterialShell showed that the Wayland ecosystem was ready for a desktop that does not ask you to assemble it from twenty independent projects. Its Material 3 fluency — dynamic color from wallpaper, consistent surfaces, deliberate spacing — proved that an opinionated visual system could coexist with deep customizability.
+
+OCWS takes that conviction and translates it into GTK3 native widgets and C-level compositor integration:
+
+- **Cohesive visual language**: glassmorphic surfaces, consistent radii, deliberate alpha values — all maintained across every widget through a shared token system (`tokens.css`), not duplicated per-component.
+- **Opinionated defaults, no ceiling**: you get a polished desktop on install. If you want to replace every widget, rewrite the bar, or swap the compositor — the modular architecture does not fight you.
+- **Theme as a first-class surface**: like DMS's matugen pipeline, OCWS has a theme engine that propagates a single palette into 11+ config surfaces — labwc themerc, sfwbar CSS, GTK settings, fuzzel, foot, rofi, mako, Qt6, and the OCWS glass CSS. Change one INI file, the whole desktop re-themes.
+
+### What we drew from Noctalia
+
+Noctalia's *quiet by design* ethos is the closest articulation we have found to what a desktop should *feel* like: present when you need it, invisible when you do not. Its modular plugin architecture and clean separation of concerns set a standard for maintainability.
+
+OCWS channels this through:
+
+- **Event Bus architecture, not a monolith**: our background daemons (`ocws-daemon.sh`) emit typed events via `ocws-emit.sh`; the UI layer subscribes via sfwbar's variable system. No tight coupling, no shared state, no IPC framework heavier than a shell script and a FIFO.
+- **Widgets as independent modules**: each `.widget` file in `dotfiles/ocws/` is self-contained — its config, its CSS, its data bindings. You can delete, replace, or fork a single widget without touching anything else.
+- **Compositor freedom**: OCWS does not fork labwc or embed a custom compositor. It works with labwc, and the same widget set can adapt to any wlr-layer-shell compositor. We stay out of the compositor's job.
+
+### The OCWS commitment
+
+1. **Zero bloat, zero apology**: glassmorphic surfaces, smooth transitions, translucent panels — delivered in C with GTK3. No JS heap, no JIT pause, no Electron process tree. A complete desktop session sits under 200 MB of RAM.
+
+2. **Modular until it hurts, then more modular**: every panel, every widget, every daemon is a replaceable unit. The `switcher`, `pager`, `taskbar`, `tray` — all are config blocks in a text file, not compiled-in assumptions.
+
+3. **Config as code**: sfwbar's `#Api2` config language is a declarative DSL. Widget trees, event bindings, CSS, and layout are all expressed in the same file. The boundary between "configuring" and "programming" is deliberately thin.
+
+4. **The Unix pipeline, not the framework**: our IPC chain is `inotifywait | ocws-emit.sh | sfwbar variable`. Our theme engine is `ini parser | template renderer | file writer`. Every link in the chain is a standalone shell command you can run, test, and pipe yourself.
+
+OCWS is not trying to be the next GNOME or KDE. It is not trying to be the most popular desktop. It is trying to be the desktop that stays out of your way, performs like native code should, and lets you reshape every pixel of it without needing a TypeScript build pipeline.
+
 ## Table of Contents
 
 - [Architecture](#architecture)

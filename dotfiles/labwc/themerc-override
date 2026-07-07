@@ -26,6 +26,7 @@ osd.label.text.color=#cdd6f4
 
 # Window switcher - classic style
 osd.window-switcher.style-classic.item.active.bg.color=#1e1e2e
+osd.window-switcher.style-classic.item.active.text.color=#cdd6f4
 osd.window-switcher.style-classic.item.active.border.width=2
 osd.window-switcher.style-classic.item.active.border.color=#89b4fa
 osd.window-switcher.style-classic.width=600
@@ -35,6 +36,9 @@ osd.window-switcher.style-classic.item.padding.y=4
 osd.window-switcher.style-classic.item.icon.size=24
 
 # Workspace switcher (Super+Number)
+osd.workspace-switcher.boxes.width=24
+osd.workspace-switcher.boxes.height=24
+osd.workspace-switcher.boxes.border.width=2
 osd.workspace-switcher.label.text.color=#cdd6f4
-osd.workspace-switcher.label.active.text.color=#cdd6f4
-osd.workspace-switcher.label.inactive.text.color=#6c7086
+osd.workspace-switcher.boxes.bg.color=#1e1e2e
+osd.workspace-switcher.boxes.border.color=#45475a

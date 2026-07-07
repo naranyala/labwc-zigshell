@@ -58,6 +58,19 @@ button, button image {
   color: {{COLOR_FG}};
 }
 
+window#switcher {
+  background-color: alpha({{COLOR_BG}}, 0.95);
+  color: {{COLOR_FG}};
+  border: 1px solid alpha({{COLOR_BORDER}}, 0.4);
+  border-radius: 10px;
+  padding: 40px;
+  -GtkWidget-hexpand: true;
+}
+
+grid#switcher_item label {
+  color: {{COLOR_FG}};
+}
+
 label {
   font-family: 'FiraCode Nerd Font', 'Noto Sans', 'DejaVu Sans', sans-serif;
   font-size: 12px;
