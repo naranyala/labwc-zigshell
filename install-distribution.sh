@@ -38,6 +38,15 @@ case "$OS" in
     fedora)
         DISTRO_SCRIPT="$SCRIPT_DIR/distro/fedora.sh"
         ;;
+    opensuse*|suse)
+        DISTRO_SCRIPT="$SCRIPT_DIR/distro/suse.sh"
+        ;;
+    alpine)
+        DISTRO_SCRIPT="$SCRIPT_DIR/distro/alpine.sh"
+        ;;
+    void)
+        DISTRO_SCRIPT="$SCRIPT_DIR/distro/void.sh"
+        ;;
     *)
         # Fallback to ID_LIKE checks
         if echo "$OS_LIKE" | grep -q "arch"; then
@@ -46,6 +55,12 @@ case "$OS" in
             DISTRO_SCRIPT="$SCRIPT_DIR/distro/debian.sh"
         elif echo "$OS_LIKE" | grep -q "fedora"; then
             DISTRO_SCRIPT="$SCRIPT_DIR/distro/fedora.sh"
+        elif echo "$OS_LIKE" | grep -q "suse"; then
+            DISTRO_SCRIPT="$SCRIPT_DIR/distro/suse.sh"
+        elif echo "$OS_LIKE" | grep -q "alpine"; then
+            DISTRO_SCRIPT="$SCRIPT_DIR/distro/alpine.sh"
+        elif echo "$OS_LIKE" | grep -q "void"; then
+            DISTRO_SCRIPT="$SCRIPT_DIR/distro/void.sh"
         else
             fail "Unsupported distribution: $PRETTY_NAME. Please use quick install."
         fi
