@@ -20,6 +20,47 @@ fail() { echo -e "  ${RED}✗${NC} $*"; exit 1; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+check_requirements() {
+    # Run the detailed requirements checker if available
+    if [ -f "$SCRIPT_DIR/scripts/ocws-check-requirements.sh" ]; then
+        bash "$SCRIPT_DIR/scripts/ocws-check-requirements.sh" 2>/dev/null
+        local status=$?
+        if [ $status -ne 0 ]; then
+            echo ""
+            echo -e "${YELLOW}Install missing dependencies, then run:${NC} ${GREEN}./install.sh${NC}"
+            exit 1
+        fi
+    else
+        # Fallback: minimal check
+        info "Running Pre-Flight Check..."
+
+        local missing=()
+        if ! command -v git >/dev/null 2>&1; then missing+=("git"); fi
+        if ! command -v labwc >/dev/null 2>&1; then missing+=("labwc"); fi
+        if ! command -v sfwbar >/dev/null 2>&1; then missing+=("sfwbar"); fi
+        if ! command -v fuzzel >/dev/null 2>&1; then missing+=("fuzzel"); fi
+
+        if [ ${#missing[@]} -ne 0 ]; then
+            echo -e "\n${RED}✗ Missing required dependencies:${NC}"
+            for dep in "${missing[@]}"; do
+                echo -e "    - ${YELLOW}$dep${NC}"
+            done
+            echo -e "\n  ${CYAN}Run: ./scripts/ocws-check-requirements.sh${NC}"
+            echo -e "  ${CYAN}Or install manually and run ./install.sh again.${NC}"
+            exit 1
+        fi
+
+        if ! command -v zig >/dev/null 2>&1; then
+            echo -e "\n${YELLOW}⚠ zig not found — C binaries will use pre-built versions${NC}"
+        fi
+
+        pass "Core requirements met!"
+    fi
+}
+
+# Run requirements check before proceeding
+check_requirements
+
 info "OCWS Shell Selection"
 
 cat << 'MENU'
@@ -366,346 +407,3 @@ if [ -d "$SCRIPT_DIR/dotfiles/qt6ct" ]; then
     pass "Qt6ct synced."
 fi
 
-# Deploy Zebar
-if [ -d "$SCRIPT_DIR/dotfiles/.glzr/zebar" ]; then
-    info "Deploying Zebar configuration..."
-    mkdir -p ~/.glzr/zebar
-    cp -r "$SCRIPT_DIR/dotfiles/.glzr/zebar/"* ~/.glzr/zebar/ 2>/dev/null || true
-    pass "Zebar synced."
-fi
-
-# Deploy extra plugins
-if [ -d "$SCRIPT_DIR/dotfiles/zebar" ]; then
-    info "Deploying Zebar configuration..."
-    mkdir -p ~/.config/zebar
-    cp -r "$SCRIPT_DIR/dotfiles/zebar/"* ~/.config/zebar/ 2>/dev/null || true
-    pass "Zebar synced."
-fi
-
-# 7. Deploy IPC & Core Tools
-info "Deploying Event Bus API & System Tools..."
-find "$SCRIPT_DIR/scripts" -maxdepth 1 -type f -name "*.sh" -exec cp {} ~/.local/bin/ \; 2>/dev/null || fail "Failed to deploy scripts"
-if [ -d "$SCRIPT_DIR/scripts/actions" ]; then
-    cp "$SCRIPT_DIR/scripts/actions/"* ~/.local/bin/actions/ 2>/dev/null || true
-fi
-chmod +x ~/.local/bin/*.sh 2>/dev/null || fail "Failed to set execute permissions on scripts"
-chmod +x ~/.local/bin/actions/* 2>/dev/null || true
-pass "Scripts and IPC mapped to ~/.local/bin"
-
-# 7b. Build & Deploy zig-built C binaries (ocws-welcome, ocws-settings, ocws-pkgmgr, etc.)
-if command -v zig &>/dev/null && [ -f "$SCRIPT_DIR/build.zig" ]; then
-    info "Building C binaries with zig..."
-    (cd "$SCRIPT_DIR" && zig build 2>&1) || warn "zig build had issues, deploying existing binaries"
-fi
-if [ -d "$SCRIPT_DIR/zig-out/bin" ]; then
-    find "$SCRIPT_DIR/zig-out/bin" -maxdepth 1 -type f -executable -exec cp {} ~/.local/bin/ \; 2>/dev/null || true
-    pass "C binaries (zig-out/bin) deployed to ~/.local/bin"
-fi
-
-# 7b. Deploy dotfiles/wallpaper script
-if [ -f "$SCRIPT_DIR/dotfiles/wallpaper" ]; then
-    cp "$SCRIPT_DIR/dotfiles/wallpaper" ~/.local/bin/wallpaper
-    chmod +x ~/.local/bin/wallpaper
-    pass "wallpaper command installed to ~/.local/bin/wallpaper"
-fi
-
-# 7b2. Deploy ocws-llm-runner launcher
-if [ -f "$SCRIPT_DIR/src/ocws-llm-runner/ocws-llm-runner" ]; then
-    cp "$SCRIPT_DIR/src/ocws-llm-runner/ocws-llm-runner" ~/.local/bin/ocws-llm-runner
-    chmod +x ~/.local/bin/ocws-llm-runner
-    pass "ocws-llm-runner launcher installed to ~/.local/bin/ocws-llm-runner"
-    
-    # Offer to install Python dependencies
-    if command -v python3 >/dev/null 2>&1; then
-        if ! python3 -c "import gi; import flask" 2>/dev/null; then
-            echo -e "\n  ${YELLOW}ocws-llm-runner needs Python dependencies.${NC}"
-            echo -n "  Install them now? [y/N]: "
-            read -r install_deps
-            if [[ "$install_deps" =~ ^[Yy]$ ]]; then
-                pip3 install -r "$SCRIPT_DIR/src/ocws-llm-runner/requirements.txt" 2>/dev/null || \
-                    warn "pip install failed — run manually: pip install -r src/ocws-llm-runner/requirements.txt"
-            else
-                echo -e "  Install manually: pip install -r src/ocws-llm-runner/requirements.txt"
-            fi
-        else
-            pass "ocws-llm-runner Python dependencies already installed"
-        fi
-    fi
-fi
-
-# 7c. Deploy wallpaper sources list
-if [ -f "$SCRIPT_DIR/dotfiles/wallpaper-sources.txt" ]; then
-    cp "$SCRIPT_DIR/dotfiles/wallpaper-sources.txt" ~/.config/ocws/wallpaper-sources.txt
-    pass "wallpaper-sources.txt deployed to ~/.config/ocws/"
-fi
-
-# 7d. Deploy .desktop files for GUI apps
-mkdir -p ~/.local/share/applications
-if [ -d "$SCRIPT_DIR/dotfiles/applications" ]; then
-    cp "$SCRIPT_DIR/dotfiles/applications/"*.desktop ~/.local/share/applications/ 2>/dev/null || true
-    if command -v update-desktop-database &> /dev/null; then
-        update-desktop-database ~/.local/share/applications/
-    fi
-    pass ".desktop entries deployed to ~/.local/share/applications"
-fi
-
-# 8. Strict Installation Validation
-info "Performing strict validation of deployed assets..."
-
-validate_file() {
-    local target="$1"
-    if [ ! -e "$target" ]; then
-        echo -e "  ${RED}✗${NC} Missing deployed asset: $target"
-        return 1
-    fi
-    return 0
-}
-
-validate_executable() {
-    local target="$1"
-    if [ ! -x "$target" ]; then
-        echo -e "  ${RED}✗${NC} Missing execute permissions: $target"
-        return 1
-    fi
-    return 0
-}
-
-validate_file_format() {
-    local target="$1"
-    local format="$2"
-    
-    case "$format" in
-        xml)
-            if ! command -v xmllint >/dev/null 2>&1; then
-                warn "xmllint not available for XML validation of $target"
-                return 0
-            fi
-            if ! xmllint --noout "$target" 2>/dev/null; then
-                echo -e "  ${RED}✗${NC} Invalid XML format: $target"
-                return 1
-            fi
-            ;;
-        ini)
-            if ! command -v crudini >/dev/null 2>&1; then
-                warn "crudini not available for INI validation of $target"
-                return 0
-            fi
-            crudini --get "$target" >/dev/null 2>&1 || {
-                echo -e "  ${RED}✗${NC} Invalid INI format: $target"
-                return 1
-            }
-            ;;
-        css)
-            if ! command -v csslint >/dev/null 2>&1; then
-                warn "csslint not available for CSS validation of $target"
-                return 0
-            fi
-            csslint "$target" >/dev/null 2>&1 || {
-                echo -e "  ${RED}✗${NC} Invalid CSS format: $target"
-                return 1
-            }
-            ;;
-        shell)
-            bash -n "$target" 2>/dev/null || {
-                echo -e "  ${RED}✗${NC} Invalid shell syntax: $target"
-                return 1
-            }
-            ;;
-    esac
-    pass "Valid $format format: $target"
-    return 0
-}
-
-validate_content() {
-    local target="$1"
-    local check_type="$2"
-    
-    case "$check_type" in
-        rcxml)
-            if ! grep -q "<labwc_config>" "$target"; then
-                echo -e "  ${RED}✗${NC} Missing root element in rc.xml"
-                return 1
-            fi
-            if ! grep -q "<keyboard>" "$target" || ! grep -q "</keyboard>" "$target"; then
-                echo -e "  ${RED}✗${NC} Missing keyboard section in rc.xml"
-                return 1
-            fi
-            ;;
-        menu)
-            if ! grep "<menu" "$target" | grep -q "/>"; then
-                echo -e "  ${RED}✗${NC} Missing root menu element in menu.xml"
-                return 1
-            fi
-            ;;
-        ocwsconfig)
-            if ! grep -q "^bar\|widget" "$target"; then
-                echo -e "  ${RED}✗${NC} Missing bar definition in ocws.config"
-                return 1
-            fi
-            ;;
-        fuzzelini)
-            if ! grep -q "^\[main\]" "$target"; then
-                echo -e "  ${RED}✗${NC} Missing [main] section in fuzzel.ini"
-                return 1
-            fi
-            ;;
-        scripts)
-            # Check for essential shebang
-            if [[ "$target" == *.sh ]]; then
-                if ! head -1 "$target" | grep -q "^#!/bin/bash"; then
-                    echo -e "  ${YELLOW}⚠${NC} Missing bash shebang in $target"
-                fi
-            fi
-            ;;
-    esac
-    pass "Content validation passed: $target ($check_type)"
-    return 0
-}
-
-validate_required_functions() {
-    local script="$1"
-    
-    if [[ "$script" == *.sh ]]; then
-        # Check for essential functions
-        if ! grep -q "^info()" "$script" && ! grep -q "^error()" "$script"; then
-            echo -e "  ${YELLOW}⚠${NC} Script $script may lack error handling functions"
-        fi
-        
-        # Check for file existence checks
-        if ! grep -q "\[ ! -f\]\|\[-d " "$script"; then
-            echo -e "  ${YELLOW}⚠${NC} Script $script may lack file validation"
-        fi
-    fi
-    pass "Required functions present in $script"
-    return 0
-}
-
-validate_keybinding_integrity() {
-    local rc_file="$HOME/.config/labwc/rc.xml"
-    
-    if [ ! -f "$rc_file" ]; then
-        echo -e "  ${YELLOW}⚠${NC} rc.xml not found for keybinding validation"
-        return 0
-    fi
-    
-    # Check for duplicate keybindings
-    local duplicates=$(sed -n 's/.*key="\([^"]*\)".*/\1/p' "$rc_file" | sort | uniq -d)
-    if [ -n "$duplicates" ]; then
-        echo -e "  ${RED}✗${NC} Duplicate keybindings found: $duplicates"
-        return 1
-    fi
-    
-    # Check for essential keybindings
-    local essential_keys=(A-Return A-Alt-Tab A-ESC A-S-ESC A-F4 S-F4)
-    for key in "${essential_keys[@]}"; do
-        if ! grep -q "key=\"$key\"" "$rc_file"; then
-            echo -e "  ${YELLOW}⚠${NC} Missing essential keybinding: $key"
-        fi
-    done
-    
-    pass "Keybinding integrity validated"
-    return 0
-}
-
-ERRORS=0
-
-# Verify Labwc
-validate_file "$HOME/.config/labwc/rc.xml" || ((ERRORS++))
-validate_file "$HOME/.config/labwc/autostart" || ((ERRORS++))
-validate_file "$HOME/.config/labwc/menu.xml" || ((ERRORS++))
-
-# Verify OCWS
-if [[ "$MODE" == "doublepanel" ]]; then
-    validate_file "$HOME/.config/ocws/ocws.config" || ((ERRORS++))
-elif [[ "$MODE" == "crystaldock" ]]; then
-    validate_file "$HOME/.config/ocws/sfwbar-full.config" || ((ERRORS++))
-fi
-
-# Verify OCWS GUI apps
-validate_file "$HOME/.local/bin/ocws-settings" || ((ERRORS++))
-validate_executable "$HOME/.local/bin/ocws-settings" || ((ERRORS++))
-validate_file "$HOME/.local/bin/ocws-welcome" || ((ERRORS++))
-validate_executable "$HOME/.local/bin/ocws-welcome" || ((ERRORS++))
-validate_file "$HOME/.local/bin/ocws-pkgmgr" || ((ERRORS++))
-validate_executable "$HOME/.local/bin/ocws-pkgmgr" || ((ERRORS++))
-validate_file "$HOME/.local/bin/ocws-dock-mgr" || ((ERRORS++))
-validate_executable "$HOME/.local/bin/ocws-dock-mgr" || ((ERRORS++))
-validate_file "$HOME/.local/bin/ocws-dotdesktop-mgr" || ((ERRORS++))
-validate_executable "$HOME/.local/bin/ocws-dotdesktop-mgr" || ((ERRORS++))
-validate_file "$HOME/.local/bin/ocws-llm-runner" || ((ERRORS++))
-validate_executable "$HOME/.local/bin/ocws-llm-runner" || ((ERRORS++))
-validate_file "$HOME/.local/share/applications/ocws-settings.desktop" || ((ERRORS++))
-validate_file "$HOME/.local/share/applications/ocws-welcome.desktop" || ((ERRORS++))
-validate_file "$HOME/.local/share/applications/ocws-pkgmgr.desktop" || ((ERRORS++))
-validate_file "$HOME/.local/share/applications/ocws-dock-mgr.desktop" || ((ERRORS++))
-validate_file "$HOME/.local/share/applications/ocws-dotdesktop-mgr.desktop" || ((ERRORS++))
-validate_file "$HOME/.local/share/applications/ocws-llm-runner.desktop" || ((ERRORS++))
-
-# Verify Launcher
-if [[ "$LAUNCHER" == "rofi" ]]; then
-    validate_file "$HOME/.config/rofi/config.rasi" || ((ERRORS++))
-fi
-
-# Verify shell-specific configs
-case "$MODE" in
-    crystaldock)
-        validate_file "$HOME/.config/crystal-dock" || ((ERRORS++)) ;;
-    dms)
-        validate_file "$HOME/.config/DankMaterialShell" || ((ERRORS++)) ;;
-    noctalia)
-        validate_file "$HOME/.config/noctalia" || ((ERRORS++)) ;;
-esac
-
-# Verify Scripts
-for script in "$SCRIPT_DIR/scripts/"*.sh; do
-    [ -e "$script" ] || continue
-    base=$(basename "$script")
-    validate_file "$HOME/.local/bin/$base" || ((ERRORS++))
-    validate_executable "$HOME/.local/bin/$base" || ((ERRORS++))
-    validate_required_functions "$HOME/.local/bin/$base"
-    validate_file_format "$HOME/.local/bin/$base" shell
-    validate_content "$HOME/.local/bin/$base" scripts
-    done
-
-# Verify Dotfile Formats
-validate_file_format "$HOME/.config/labwc/rc.xml" xml
-validate_file_format "$HOME/.config/labwc/menu.xml" xml
-
-OCWS_CFG="$HOME/.config/ocws/ocws.config"
-if [[ "$MODE" == "doublepanel" ]] && [ -f "$OCWS_CFG" ]; then
-    validate_content "$OCWS_CFG" ocwsconfig
-elif [[ "$MODE" == "crystaldock" ]] && [ -f "$HOME/.config/ocws/sfwbar-full.config" ]; then
-    validate_content "$HOME/.config/ocws/sfwbar-full.config" ocwsconfig
-fi
-
-if [[ "$LAUNCHER" == "rofi" ]] && [ -f "$HOME/.config/rofi/config.rasi" ]; then
-    validate_file_format "$HOME/.config/rofi/config.rasi" rasi
-    pass "Rofi format validated"
-fi
-
-# Validate Labwc content
-validate_content "$HOME/.config/labwc/rc.xml" rcxml
-validate_content "$HOME/.config/labwc/menu.xml" menu
-
-# Validate keybinding integrity
-validate_keybinding_integrity
-
-if [ "$ERRORS" -gt 0 ]; then
-    fail "Comprehensive validation failed with $ERRORS errors. Installation is incomplete."
-else
-    pass "All configuration files strictly validated with format, content, and integrity checks."
-fi
-
-# 9. Success
-info "OCWS Deployment Complete! 🚀"
-echo -e "\n${CYAN}=== Quick Install Complete ===${NC}"
-echo -e "  Installed Mode: ${GREEN}${MODE_DESC}${NC}"
-echo -e "  Launcher: ${GREEN}${LAUNCHER_DESC}${NC}"
-echo -e "  Terminal: ${GREEN}${TERMINAL_DESC}${NC}"
-echo -e "${CYAN}  Note:${NC} You must manually install labwc, sfwbar, ${LAUNCHER}, and ${TERMINAL} first."
-echo -e "  Use ./install-distribution.sh for automatic distro detection and installation."
-echo -e "\n${CYAN}  Next Steps:${NC}"
-echo -e "  • Install dependencies using: ./install-distribution.sh (Recommended)"
-echo -e "  • Build from source: ./build-ocws-core.sh all"
-echo -e "  • Restart and select 'labwc' from display manager"
-echo -e "  • Or run: labwc (from a TTY)"

@@ -12,6 +12,7 @@ PKGS=(
     jq crudini libxml2-utils brightnessctl wlr-randr
     nautilus gnome-keyring xdotool inotify-tools imagemagick wireplumber
     network-manager bluez libnotify-bin fonts-noto fonts-dejavu-core
+    rsync
 )
 
 # sfwbar — not always in default repos

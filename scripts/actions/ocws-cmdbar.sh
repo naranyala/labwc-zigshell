@@ -95,7 +95,7 @@ register "network/vpn"           "nmcli connection show"
 
 # Theme
 register "theme/switcher"        "$PROJECT_DIR/scripts/theme-engine.sh list"
-register "theme/wallpaper"       "$PROJECT_DIR/scripts/wallpaper-theme.sh random"
+register "theme/wallpaper"       "wallpaper random"
 register "theme/icons"           "$SCRIPT_DIR/icon-theme-picker.sh"
 register "theme/font-scale"      "$PROJECT_DIR/scripts/font-scale.sh"
 

@@ -11,6 +11,7 @@ PKGS=(
     nautilus gnome-keyring xdotool inotify-tools ImageMagick wireplumber
     fuzzel NetworkManager bluez libnotify-tools
     google-noto-sans-fonts google-noto-sans-mono-fonts dejavu-fonts
+    rsync
 )
 
 # FiraCode Nerd Font

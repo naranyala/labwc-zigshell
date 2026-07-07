@@ -36,8 +36,11 @@ pub fn build(b: *std.Build) void {
                 .target = target,
                 .optimize = optimize,
                 .root_source_file = b.path("src/tests.zig"),
+                .link_libc = true,
             }),
         });
+        tests.root_module.addIncludePath(b.path("src"));
+
         const run_tests = b.addRunArtifact(tests);
         const test_step = b.step("test", "Run integration tests");
         test_step.dependOn(&run_tests.step);
@@ -96,6 +99,29 @@ pub fn build(b: *std.Build) void {
         });
         exe.root_module.addCSourceFile(.{
             .file = b.path("src/cli/ocws-kv-cli.c"),
+            .flags = c_flags,
+        });
+
+        b.installArtifact(exe);
+    }
+
+    // ocws-fonts: links ocws-fonts.c library + CLI
+    {
+        const exe = b.addExecutable(.{
+            .name = "ocws-fonts",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+
+        exe.root_module.addCSourceFile(.{
+            .file = b.path("src/core/ocws-fonts.c"),
+            .flags = c_flags,
+        });
+        exe.root_module.addCSourceFile(.{
+            .file = b.path("src/cli/ocws-fonts-cli.c"),
             .flags = c_flags,
         });
 
@@ -313,6 +339,25 @@ pub fn build(b: *std.Build) void {
         b.installArtifact(hypertile);
     }
 
+    // ocws-brokerd: C-native Event Bus Daemon
+    {
+        const brokerd = b.addExecutable(.{
+            .name = "ocws-brokerd",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+
+        brokerd.root_module.addCSourceFile(.{
+            .file = b.path("src/daemons/ocws-brokerd.c"),
+            .flags = c_flags,
+        });
+
+        b.installArtifact(brokerd);
+    }
+
     // ocws-welcome: GTK3 Welcome GUI
     {
         const welcome = b.addExecutable(.{
@@ -397,6 +442,52 @@ pub fn build(b: *std.Build) void {
         b.installArtifact(settings);
     }
 
+    // ocws-fonts-mgr: GTK3 Fonts Manager GUI (modular)
+    {
+        const fonts_mgr = b.addExecutable(.{
+            .name = "ocws-fonts-mgr",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+
+        fonts_mgr.root_module.addCSourceFile(.{
+            .file = b.path("src/gui/ocws-fonts-mgr/fonts-mgr.c"),
+            .flags = c_flags,
+        });
+        fonts_mgr.root_module.addCSourceFile(.{
+            .file = b.path("src/gui/ocws-fonts-mgr/fonts-mgr-common.c"),
+            .flags = c_flags,
+        });
+        fonts_mgr.root_module.addCSourceFile(.{
+            .file = b.path("src/gui/ocws-fonts-mgr/fonts-mgr-fonts.c"),
+            .flags = c_flags,
+        });
+        fonts_mgr.root_module.addCSourceFile(.{
+            .file = b.path("src/gui/ocws-fonts-mgr/fonts-mgr-preview.c"),
+            .flags = c_flags,
+        });
+        fonts_mgr.root_module.addCSourceFile(.{
+            .file = b.path("src/gui/ocws-fonts-mgr/fonts-mgr-installer.c"),
+            .flags = c_flags,
+        });
+        fonts_mgr.root_module.addCSourceFile(.{
+            .file = b.path("src/gui/ocws-fonts-mgr/fonts-mgr-ui.c"),
+            .flags = c_flags,
+        });
+        fonts_mgr.root_module.addCSourceFile(.{
+            .file = b.path("src/core/ocws-fonts.c"),
+            .flags = c_flags,
+        });
+        fonts_mgr.root_module.linkSystemLibrary("gtk+-3.0", .{});
+        fonts_mgr.root_module.linkSystemLibrary("glib-2.0", .{});
+        fonts_mgr.root_module.linkSystemLibrary("gio-2.0", .{});
+
+        b.installArtifact(fonts_mgr);
+    }
+
     // ocws-pkgmgr: GTK3 Package Manager GUI
     {
         const pkgmgr = b.addExecutable(.{
@@ -441,5 +532,83 @@ pub fn build(b: *std.Build) void {
         llm_runner.root_module.linkSystemLibrary("json-c", .{});
 
         b.installArtifact(llm_runner);
+    }
+
+    // ocws-theme-center: GTK3 Theme Center GUI
+    {
+        const theme_center = b.addExecutable(.{
+            .name = "ocws-theme-center",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+
+        theme_center.root_module.addCSourceFile(.{
+            .file = b.path("src/gui/ocws-theme-center.c"),
+            .flags = c_flags,
+        });
+        theme_center.root_module.linkSystemLibrary("gtk+-3.0", .{});
+        theme_center.root_module.linkSystemLibrary("glib-2.0", .{});
+
+        b.installArtifact(theme_center);
+
+        // ocws-plugin: Native plugin loader
+        const plugin = b.addExecutable(.{
+            .name = "ocws-plugin",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+        plugin.root_module.addCSourceFile(.{
+            .file = b.path("src/cli/ocws-plugin.c"),
+            .flags = c_flags,
+        });
+        b.installArtifact(plugin);
+        // ocws-appletd: Unified Applet Daemon
+        const appletd = b.addExecutable(.{
+            .name = "ocws-appletd",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+        appletd.root_module.addCSourceFile(.{
+            .file = b.path("src/daemon/ocws-appletd.c"),
+            .flags = c_flags,
+        });
+        b.installArtifact(appletd);
+
+        // --- libocws-store: reactive state library + tests ---
+        const test_store = b.addExecutable(.{
+            .name = "test_store",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+        test_store.root_module.addIncludePath(b.path("src"));
+        test_store.root_module.addCSourceFile(.{
+            .file = b.path("src/libocws/store.c"),
+            .flags = c_flags,
+        });
+        test_store.root_module.addCSourceFile(.{
+            .file = b.path("src/tests/test_store.c"),
+            .flags = c_flags,
+        });
+        test_store.root_module.linkSystemLibrary("glib-2.0", .{});
+        test_store.root_module.linkSystemLibrary("gobject-2.0", .{});
+        test_store.root_module.linkSystemLibrary("gio-2.0", .{});
+        test_store.root_module.linkSystemLibrary("gtk+-3.0", .{});
+        b.installArtifact(test_store);
+
+        const run_store_test = b.addRunArtifact(test_store);
+        const store_test_step = b.step("test-store", "Run libocws-store test suite");
+        store_test_step.dependOn(&run_store_test.step);
     }
 }

@@ -10,6 +10,7 @@ PKGS=(
     jq crudini libxml2 brightnessctl wlr-randr
     nautilus gnome-keyring xdotool inotify-tools imagemagick wireplumber
     fuzzel networkmanager bluez libnotify noto-fonts ttf-dejavu
+    rsync
 )
 
 # Use paru or yay if available, otherwise fallback to pacman

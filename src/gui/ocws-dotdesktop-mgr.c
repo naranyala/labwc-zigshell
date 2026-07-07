@@ -5,6 +5,7 @@
  */
 
 #include <gtk/gtk.h>
+#include "../libocws/gtk.h"
 #include <glib.h>
 #include <gio/gio.h>
 #include <stdlib.h>
@@ -362,6 +363,9 @@ static GtkWidget* create_editor_row(const char *label_text, GtkWidget **entry_wi
 
 static void activate(GtkApplication *app, gpointer user_data) {
     (void)user_data;
+    
+    ocws_gtk_enforce_premium_theme();
+    ocws_gtk_apply_dynamic_css(app, NULL);
 
     GtkWidget *window = gtk_application_window_new(app);
     gtk_window_set_title(GTK_WINDOW(window), "OCWS DotDesktop Manager");

@@ -54,7 +54,7 @@ echo ""
 
 # --- 4. Runtime Dependencies ---
 echo "[4/5] Runtime Dependencies"
-for cmd in playerctl wl-copy wl-paste grim slurp jq brightnessctl cliphist inotifywait swaybg swayidle swaylock mako dunst rofi qt6ct bc tesseract; do
+for cmd in playerctl wl-copy wl-paste grim slurp jq brightnessctl cliphist inotifywait swaybg swayidle swaylock mako dunst rofi qt6ct bc tesseract rsync; do
     if command -v "$cmd" &>/dev/null; then
         pass "$cmd"
     else

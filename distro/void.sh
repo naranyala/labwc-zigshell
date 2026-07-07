@@ -9,6 +9,7 @@ PKGS=(
     playerctl wl-clipboard cliphist grim slurp flameshot
     jq crudini libxml2 brightnessctl wlr-randr nautilus
     gnome-keyring xdotool inotify-tools ImageMagick wireplumber
+    rsync
 )
 
 # Install packages

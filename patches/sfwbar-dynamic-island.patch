@@ -1,0 +1,89 @@
+diff --git a/src/gui/bar.c b/src/gui/bar.c
+index a07ead5..38839c4 100644
+--- a/src/gui/bar.c
++++ b/src/gui/bar.c
+@@ -360,28 +360,30 @@ static gboolean bar_resize ( GtkWidget *self )
+     size = MIN(size, horizontal? rect.width : rect.height) - priv->margin * 2;
+     gtk_widget_set_size_request(GTK_WIDGET(priv->revealer),
+         horizontal? size : 1, horizontal? 1 : size);
++    
++    // DYNAMIC ISLAND PATCH: let window span full geometry, rely on inner ebox for layout
+     gtk_widget_set_size_request(self,
+-        horizontal? size : 1, horizontal? 1 : size);
++        horizontal? rect.width : 1, horizontal? 1 : rect.height);
+   }
+-  full_size = !priv->current_monitor ||
+-    (size == (horizontal? rect.width : rect.height));
++  full_size = TRUE; // Force full_size true for the window
+ 
+   if(priv->dir == dir && priv->halign == halign && priv->valign == valign &&
+       priv->full_size == full_size)
+     return G_SOURCE_REMOVE;
+ 
++  // Set inner layout for Dynamic Island
++  gtk_widget_set_halign(priv->ebox, halign);
++  gtk_widget_set_valign(priv->ebox, valign);
++
++  // Force GTK Window to always span full horizontal or vertical depending on direction
+   gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_TOP,
+-      (dir == GTK_POS_TOP || ((full_size || valign == GTK_ALIGN_START) &&
+-        !horizontal)));
++      (dir == GTK_POS_TOP || !horizontal));
+   gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_LEFT,
+-      (dir == GTK_POS_LEFT || ((full_size || halign == GTK_ALIGN_START) &&
+-        horizontal)));
++      (dir == GTK_POS_LEFT || horizontal));
+   gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_RIGHT,
+-      (dir == GTK_POS_RIGHT || ((full_size || halign == GTK_ALIGN_END) &&
+-        horizontal)));
++      (dir == GTK_POS_RIGHT || horizontal));
+   gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_BOTTOM,
+-      (dir == GTK_POS_BOTTOM || ((full_size || valign == GTK_ALIGN_END) &&
+-        !horizontal)));
++      (dir == GTK_POS_BOTTOM || !horizontal));
+ 
+   if(priv->dir != dir)
+   {
+@@ -1158,7 +1160,8 @@ GtkWidget *bar_new ( gchar *name )
+   gtk_widget_show(GTK_WIDGET(priv->revealer));
+ 
+   tmp = g_strdup_printf(
+-      "window#%s.sensor { background-color: rgba(0,0,0,0); }", priv->name);
++      "window#%s { background-color: rgba(0,0,0,0); background: none; border: none; box-shadow: none; }\n"
++      "window#%s.sensor { background-color: rgba(0,0,0,0); }", priv->name, priv->name);
+   css_widget_apply(self, tmp);
+   g_free(tmp);
+   bar_update_monitor(self);
+diff --git a/src/gui/popup.c b/src/gui/popup.c
+index 1601f3f..e76377d 100644
+--- a/src/gui/popup.c
++++ b/src/gui/popup.c
+@@ -22,6 +22,15 @@ static void popup_window_init ( PopupWindow *self )
+ {
+ }
+ 
++// DYNAMIC ISLAND PATCH: Spring animation callback
++static gboolean popup_spring_timeout(gpointer data)
++{
++    GtkWidget *widget = GTK_WIDGET(data);
++    GtkStyleContext *context = gtk_widget_get_style_context(widget);
++    gtk_style_context_remove_class(context, "popup-animating-in");
++    return FALSE;
++}
++
+ static void popup_set_property ( GObject *self, guint prop,
+     const GValue *value, GParamSpec *param )
+ {
+@@ -216,6 +225,12 @@ void popup_show ( GtkWidget *parent, GtkWidget *popup, GdkSeat *seat )
+     g_object_set_data (G_OBJECT (gpopup), "gdk-attached-grab-window", NULL);
+     gtk_grab_add(child);
+   }
++
++  // DYNAMIC ISLAND PATCH: Spring animation for popups
++  GtkStyleContext *context = gtk_widget_get_style_context(popup);
++  gtk_style_context_add_class(context, "popup-animating-in");
++  // Give GTK enough time to render the first frame with the 'animating-in' class
++  g_timeout_add(16, (GSourceFunc)popup_spring_timeout, popup);
+ }
+ 
+ void popup_trigger ( GtkWidget *parent, gchar *name, GdkEvent *ev )

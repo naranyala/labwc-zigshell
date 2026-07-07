@@ -11,6 +11,7 @@ PKGS=(
     nautilus gnome-keyring xdotool inotify-tools ImageMagick wireplumber
     fuzzel NetworkManager bluez libnotify
     google-noto-sans-fonts google-noto-sans-mono-fonts dejavu-sans-fonts
+    rsync
 )
 
 if dnf search sfwbar | grep -qi "sfwbar"; then

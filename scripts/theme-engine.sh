@@ -11,7 +11,6 @@
 #
 # Themes are INI files in themes/ with sections:
 #   [meta], [colors], [labwc], [gtk3], [gtk4], [fonts],
-#   [rofi], [sfwbar], [zebar], [mako], [foot], [qt6ct], [cursor], [ocws]
 #
 
 set -euo pipefail
@@ -243,7 +242,6 @@ render_template() {
                             local key="${var_name#COLOR_}"
                             var_value=$(ini_get "colors.${key,,}" "")
                         elif [[ "$var_name" == BG_ALPHA || "$var_name" == SURFACE_ALPHA || "$var_name" == BORDER_ALPHA ]]; then
-                            var_value=$(ini_get "zebar.${var_name,,}" "")
                         elif [[ "$var_name" == FONT_SIZE || "$var_name" == FONT_SIZE_SMALL || "$var_name" == MODULE_* ]]; then
                             var_value=$(ini_get "sfwbar.${var_name,,}" "")
                         elif [[ "$var_name" == CORNER_RADIUS ]]; then
@@ -300,9 +298,6 @@ declare -A OUTPUT_MAP=(
     [ocws.css.tmpl]="$HOME/.config/ocws/ocws.css"
 )
 
-# Also write zebar CSS to both locations
-declare -A ZEBAR_MAP=(
-    [zebar.css.tmpl]="$HOME/.glzr/zebar/labwc-zebar/main/style.css"
 )
 
 # ============================================================
@@ -367,13 +362,24 @@ cmd_apply() {
     local applied=0
 
     # GTK CSS (same for GTK3 and GTK4)
+    mkdir -p "$HOME/.config/gtk-3.0" "$HOME/.config/gtk-4.0"
     local gtk_css
     gtk_css=$(render_template "$TEMPLATES_DIR/gtk.css.tmpl")
     if [[ -n "$gtk_css" ]]; then
         echo "$gtk_css" > "$HOME/.config/gtk-3.0/gtk.css"
         echo "$gtk_css" > "$HOME/.config/gtk-4.0/gtk.css"
         pass "gtk.css (GTK3 + GTK4)"
-        ((applied++))
+        applied=$((applied + 1))
+    fi
+
+    # Shared color tokens must live next to gtk.css or @ocws_* is undefined
+    local gtk_tokens
+    gtk_tokens=$(render_template "$TEMPLATES_DIR/tokens.css.tmpl")
+    if [[ -n "$gtk_tokens" ]]; then
+        echo "$gtk_tokens" > "$HOME/.config/gtk-3.0/tokens.css"
+        echo "$gtk_tokens" > "$HOME/.config/gtk-4.0/tokens.css"
+        pass "gtk tokens.css (GTK3 + GTK4)"
+        applied=$((applied + 1))
     fi
 
     # GTK3 settings.ini
@@ -382,7 +388,7 @@ cmd_apply() {
     if [[ -n "$gtk3_ini" ]]; then
         echo "$gtk3_ini" > "$HOME/.config/gtk-3.0/settings.ini"
         pass "GTK3 settings.ini"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # GTK4 settings.ini
@@ -391,7 +397,7 @@ cmd_apply() {
     if [[ -n "$gtk4_ini" ]]; then
         echo "$gtk4_ini" > "$HOME/.config/gtk-4.0/settings.ini"
         pass "GTK4 settings.ini"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # Labwc themerc-override
@@ -400,7 +406,7 @@ cmd_apply() {
     if [[ -n "$themerc" ]]; then
         echo "$themerc" > "$HOME/.config/labwc/themerc-override"
         pass "labwc themerc-override"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # Environment
@@ -409,7 +415,7 @@ cmd_apply() {
     if [[ -n "$environment" ]]; then
         echo "$environment" > "$HOME/.config/labwc/environment"
         pass "labwc environment"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # SFWBar CSS
@@ -418,7 +424,7 @@ cmd_apply() {
     if [[ -n "$sfwbar_css" ]]; then
         echo "$sfwbar_css" > "$HOME/.config/ocws/theme.css"
         pass "theme.css"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # CSS Tokens (single source of truth for colors)
@@ -427,7 +433,7 @@ cmd_apply() {
     if [[ -n "$tokens_css" ]]; then
         echo "$tokens_css" > "$HOME/.config/ocws/tokens.css"
         pass "tokens.css"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # OCWS Glass CSS
@@ -436,7 +442,7 @@ cmd_apply() {
     if [[ -n "$ocws_css" ]]; then
         echo "$ocws_css" > "$HOME/.config/ocws/ocws.css"
         pass "ocws.css"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # Rofi
@@ -445,7 +451,7 @@ cmd_apply() {
     if [[ -n "$rofi_css" ]]; then
         echo "$rofi_css" > "$HOME/.config/rofi/config.rasi"
         pass "rofi.rasi"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # Fuzzel
@@ -455,7 +461,7 @@ cmd_apply() {
         mkdir -p "$HOME/.config/fuzzel"
         echo "$fuzzel_ini" > "$HOME/.config/fuzzel/fuzzel.ini"
         pass "fuzzel.ini"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # Mako
@@ -464,7 +470,7 @@ cmd_apply() {
     if [[ -n "$mako_ini" ]]; then
         echo "$mako_ini" > "$HOME/.config/mako/config"
         pass "mako.ini"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # Foot
@@ -473,7 +479,7 @@ cmd_apply() {
     if [[ -n "$foot_ini" ]]; then
         echo "$foot_ini" > "$HOME/.config/foot/foot.ini"
         pass "foot.ini"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # Qt
@@ -482,7 +488,7 @@ cmd_apply() {
     if [[ -n "$qt_conf" ]]; then
         echo "$qt_conf" > "$HOME/.config/qt6ct/qt6ct.conf"
         pass "qt6ct.conf"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     # Update widget profile if sfwbar config exists
@@ -490,7 +496,7 @@ cmd_apply() {
     if [[ -f "$ocws_config" ]]; then
         sed -i "s|include(\"widget-sets/.*\.set\")|include(\"widget-sets/${profile}.set\")|g" "$ocws_config"
         pass "Widget profile set to: $profile"
-        ((applied++))
+        applied=$((applied + 1))
     fi
 
     echo ""
@@ -533,7 +539,6 @@ cmd_export() {
         [[ -f "$tmpl_file" ]] || continue
         local name
         name=$(basename "$tmpl_file")
-        if [[ "$name" == "zebar.css.tmpl" ]]; then continue; fi
         local content
         content=$(render_template "$tmpl_file")
 
@@ -552,16 +557,20 @@ cmd_export() {
         fi
     done
 
-    # Handle Zebar
-    if [[ -f "$TEMPLATES_DIR/zebar.css.tmpl" ]]; then
-        local zebar_content
-        zebar_content=$(render_template "$TEMPLATES_DIR/zebar.css.tmpl")
-        if [[ -n "$zebar_content" ]]; then
-            local zebar_dest="${ZEBAR_MAP[zebar.css.tmpl]}"
-            zebar_dest="${zebar_dest/$HOME/$DOTFILES_DIR}"
-            mkdir -p "$(dirname "$zebar_dest")"
-            echo "$zebar_content" > "$zebar_dest"
-            pass "zebar.css.tmpl → ${zebar_dest#$HOME/}"
+    # Also export tokens into the GTK dirs so gtk.css @import resolves
+    if [[ -f "$TEMPLATES_DIR/tokens.css.tmpl" ]]; then
+        local gtk_tokens_export
+        gtk_tokens_export="$(render_template "$TEMPLATES_DIR/tokens.css.tmpl")"
+        if [[ -n "$gtk_tokens_export" ]]; then
+            for d in gtk-3.0 gtk-4.0; do
+                local gd="$DOTFILES_DIR/$d"
+                mkdir -p "$gd"
+                echo "$gtk_tokens_export" > "$gd/tokens.css"
+                pass "tokens.css → $d/"
+            done
+        fi
+    fi
+
         fi
     fi
 

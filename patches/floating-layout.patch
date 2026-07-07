@@ -1,0 +1,46 @@
+--- a/sources/sfwbar/src/gui/bar.c
++++ b/sources/sfwbar/src/gui/bar.c
+@@ -376,18 +376,21 @@
+     size = MIN(size, horizontal? rect.width : rect.height) - priv->margin * 2;
+     gtk_widget_set_size_request(GTK_WIDGET(priv->revealer),
+         horizontal? size : 1, horizontal? 1 : size);
+-    gtk_widget_set_size_request(self,
+-        horizontal? size : 1, horizontal? 1 : size);
+   }
+   full_size = !priv->current_monitor ||
+     (size == (horizontal? rect.width : rect.height));
+ 
+   if(priv->dir == dir && priv->halign == halign && priv->valign == valign &&
+       priv->full_size == full_size)
+     return G_SOURCE_REMOVE;
+ 
++  // PATCH: Support Floating Layout (Dank/Noctalia style)
++  gtk_widget_set_halign(priv->ebox, halign);
++  gtk_widget_set_valign(priv->ebox, valign);
++
+   // Set inner layout for Dynamic Island
+   gtk_widget_set_halign(priv->ebox, halign);
+   gtk_widget_set_valign(priv->ebox, valign);
+ 
+   // Force GTK Window to always span full horizontal or vertical depending on direction
+   gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_TOP,
+       (dir == GTK_POS_TOP || ((full_size || valign == GTK_ALIGN_START) &&
+         !horizontal)));
+-  gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_LEFT,
+-      (dir == GTK_POS_LEFT || ((full_size || halign == GTK_ALIGN_START) &&
+-        horizontal)));
+-  gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_RIGHT,
+-      (dir == GTK_POS_RIGHT || ((full_size || halign == GTK_ALIGN_END) &&
+-        horizontal)));
++
++  gboolean anchor_sides = (horizontal && (halign == GTK_ALIGN_FILL || full_size)) ||
++                          (!horizontal && (halign == GTK_ALIGN_FILL || full_size));
++
++  gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_LEFT,
++      (dir == GTK_POS_LEFT || anchor_sides);
++  gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_RIGHT,
++      (dir == GTK_POS_RIGHT || anchor_sides);
++
+   gtk_layer_set_anchor(GTK_WINDOW(self), GTK_LAYER_SHELL_EDGE_BOTTOM,
+       (dir == GTK_POS_BOTTOM || ((full_size || valign == GTK_ALIGN_END) &&
+         !horizontal)));

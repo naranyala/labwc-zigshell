@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-#define OCWS_KV_MAX_LINE 4096
+#define OCWS_KV_MAX_LINE 65536
 #define OCWS_KV_INITIAL_CAP 64
 
 typedef struct {

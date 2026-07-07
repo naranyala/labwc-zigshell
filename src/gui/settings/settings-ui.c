@@ -4,10 +4,11 @@
  */
 
 #include "settings-ui.h"
+#include "../../core/utils.h"
+#include "../../libocws/gtk.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "../../core/utils.h"
 
 // ============================================================
 // Configuration

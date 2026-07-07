@@ -4,38 +4,9 @@
 #include <string.h>
 #include <dirent.h>
 
-#define OCWS_CONFIG_DIR  ".config/ocws"
-
-/* ============================================================
- * Path helpers
- * ============================================================ */
-
-void get_config_dir(char *buf, size_t len) {
-    const char *home = getenv("HOME");
-    if (!home) home = "/tmp";
-    snprintf(buf, len, "%s/%s", home, OCWS_CONFIG_DIR);
-}
-
 /* ============================================================
  * Command execution
  * ============================================================ */
-
-void run_cmd_async(const char *cmd) {
-    if (cmd && cmd[0]) {
-        char full[1024];
-        size_t len = strlen(cmd);
-        gboolean has_amp = FALSE;
-        while (len > 0 && (cmd[len-1] == ' ' || cmd[len-1] == '\t')) len--;
-        if (len > 0 && cmd[len-1] == '&') has_amp = TRUE;
-
-        if (has_amp) {
-            snprintf(full, sizeof(full), "%s", cmd);
-        } else {
-            snprintf(full, sizeof(full), "%s &", cmd);
-        }
-        system(full);
-    }
-}
 
 void run_cmd(GtkWidget *widget, gpointer data) {
     (void)widget;
@@ -65,25 +36,6 @@ int scan_themes(const char *dir, char ***out_names, int max) {
     }
     closedir(d);
     return count;
-}
-
-/* ============================================================
- * Pretty-print a theme slug
- * ============================================================ */
-
-char *prettify(const char *slug) {
-    char *buf = g_strdup(slug);
-    gboolean cap = TRUE;
-    for (int i = 0; buf[i]; i++) {
-        if (buf[i] == '-' || buf[i] == '_') {
-            buf[i] = ' ';
-            cap = TRUE;
-        } else if (cap) {
-            buf[i] = g_ascii_toupper(buf[i]);
-            cap = FALSE;
-        }
-    }
-    return buf;
 }
 
 /* ============================================================

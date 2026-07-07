@@ -5,18 +5,20 @@
 #include <glib.h>
 #include <gtk/gtk.h>
 
-/* Path helpers */
-void get_config_dir(char *buf, size_t len);
+/* Path helpers (now in libocws) */
+#include "../libocws/fs.h"
 
-/* Command execution */
-void run_cmd_async(const char *cmd);
+/* Command execution (now in libocws) */
+#include "../libocws/spawn.h"
+
+/* String utilities (now in libocws) */
+#include "../libocws/string.h"
+
+/* GTK specific execution */
 void run_cmd(GtkWidget *widget, gpointer data);
 
 /* Themes directory scanner */
 int scan_themes(const char *dir, char ***out_names, int max);
-
-/* Pretty-print a theme slug */
-char *prettify(const char *slug);
 
 /* ============================================================
  * Shared Theme Data — single source of truth

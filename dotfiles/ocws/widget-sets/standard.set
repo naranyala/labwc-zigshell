@@ -2,5 +2,5 @@
   widget "volume-text"
   widget "brightness-text"
   widget "battery-text"
-  include("tray.widget")
+  include("widgets/core/tray.widget")
   widget "ocws-control-center"

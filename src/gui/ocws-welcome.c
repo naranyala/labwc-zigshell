@@ -19,8 +19,9 @@
 #include <gtk/gtk.h>
 #include <glib.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include "../core/utils.h"
+#include "../libocws/gtk.h"
+#include "../libocws/string.h"
 #include <unistd.h>
 #include <sys/stat.h>
 #include "utils.h"
@@ -323,9 +324,9 @@ static GtkWidget *build_theme_page(void) {
         g_object_unref(prov);
 
         const char *display_name = OCWS_THEMES[i].name
-            ? OCWS_THEMES[i].name : prettify(OCWS_THEMES[i].slug);
+            ? OCWS_THEMES[i].name : ocws_str_prettify(OCWS_THEMES[i].slug);
         GtkWidget *lbl = gtk_label_new(display_name);
-        if (!OCWS_THEMES[i].name) g_free((char *)display_name);
+        if (!OCWS_THEMES[i].name) free((char *)display_name);
         gtk_container_add(GTK_CONTAINER(btn), lbl);
 
         g_signal_connect(btn, "clicked", G_CALLBACK(on_theme_select),
@@ -361,9 +362,9 @@ static GtkWidget *build_theme_page(void) {
             GtkStyleContext *ctx = gtk_widget_get_style_context(btn);
             gtk_style_context_add_class(ctx, "welcome-card");
 
-            char *pretty = prettify(extra[i]);
+            char *pretty = ocws_str_prettify(extra[i]);
             GtkWidget *lbl = gtk_label_new(pretty);
-            g_free(pretty);
+            free(pretty);
             gtk_container_add(GTK_CONTAINER(btn), lbl);
 
             g_signal_connect_data(btn, "clicked", G_CALLBACK(on_theme_select),
@@ -790,105 +791,6 @@ static void free_ptr(gpointer data, GClosure *closure) {
     g_free(data);
 }
 
-static void apply_welcome_css(void) {
-    GtkCssProvider *provider = gtk_css_provider_new();
-    char css[8192] = {0};
-
-    /* Fallback tokens — overridden if tokens.css exists */
-    snprintf(css, sizeof(css),
-        "@define-color ocws_bg #1e1e2e;"
-        "@define-color ocws_fg #cdd6f4;"
-        "@define-color ocws_mantle #181825;"
-        "@define-color ocws_surface0 #313244;"
-        "@define-color ocws_accent #89b4fa;"
-        "@define-color ocws_sapphire #74c7ec;"
-    );
-    int pos = (int)strlen(css);
-
-    /* Load tokens.css if available (overrides fallbacks) */
-    char dir[512], tokpath[576];
-    get_config_dir(dir, sizeof(dir));
-    snprintf(tokpath, sizeof(tokpath), "%s/tokens.css", dir);
-    FILE *f = fopen(tokpath, "r");
-    if (f) {
-        size_t n = fread(css + pos, 1, sizeof(css) - pos - 2048, f);
-        fclose(f);
-        pos += (int)n;
-    }
-
-    /* Application CSS */
-    snprintf(css + pos, sizeof(css) - pos,
-        "window {"
-        "  background-color: @ocws_bg;"
-        "  color: @ocws_fg;"
-        "}"
-        "headerbar {"
-        "  background-color: @ocws_mantle;"
-        "  color: @ocws_fg;"
-        "  border-bottom: 1px solid alpha(@ocws_fg,0.06);"
-        "}"
-        ".welcome-card {"
-        "  padding: 12px;"
-        "  border-radius: 12px;"
-        "  border: 1px solid alpha(@ocws_fg,0.08);"
-        "  background-color: alpha(@ocws_surface0,0.75);"
-        "  color: @ocws_fg;"
-        "  transition: all 200ms ease;"
-        "}"
-        ".welcome-card:hover {"
-        "  background-color: alpha(@ocws_accent,0.12);"
-        "  border-color: alpha(@ocws_accent,0.25);"
-        "}"
-        ".welcome-card.suggested-action {"
-        "  background-color: alpha(@ocws_accent,0.22);"
-        "  border-color: @ocws_accent;"
-        "}"
-        "button {"
-        "  border-radius: 8px;"
-        "  padding: 6px 16px;"
-        "  background-color: alpha(@ocws_surface0,0.8);"
-        "  color: @ocws_fg;"
-        "  border: 1px solid alpha(@ocws_fg,0.08);"
-        "}"
-        "button:hover {"
-        "  background-color: alpha(@ocws_accent,0.15);"
-        "}"
-        "button.suggested-action {"
-        "  background-color: @ocws_accent;"
-        "  color: @ocws_bg;"
-        "  font-weight: bold;"
-        "}"
-        "button.suggested-action:hover {"
-        "  background-color: @ocws_sapphire;"
-        "}"
-        ".dim-label {"
-        "  opacity: 0.6;"
-        "  font-size: 0.85em;"
-        "}"
-        "separator {"
-        "  background-color: alpha(@ocws_fg,0.06);"
-        "  min-height: 1px;"
-        "}"
-        "switch {"
-        "  min-width: 48px;"
-        "  min-height: 24px;"
-        "}"
-        "checkbutton check {"
-        "  min-width: 18px;"
-        "  min-height: 18px;"
-        "  border-radius: 4px;"
-        "}"
-        "* {"
-        "  font-family: 'Noto Sans', 'Adwaita Sans', sans-serif;"
-        "}"
-    );
-
-    gtk_css_provider_load_from_data(provider, css, -1, NULL);
-    gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
-        GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-    g_object_unref(provider);
-}
-
 /* ================================================================
  * App activation
  * ================================================================ */
@@ -896,8 +798,8 @@ static void apply_welcome_css(void) {
 static void activate(GtkApplication *app, gpointer user_data) {
     (void)user_data;
 
-    apply_welcome_css();
-
+    // Premium GTK abstractions handle CSS and themes dynamically
+    // No more static CSS loading needed
     GtkWidget *window = gtk_application_window_new(app);
     gtk_window_set_title(GTK_WINDOW(window), "Welcome to OCWS");
     gtk_window_set_default_size(GTK_WINDOW(window), 580, 520);

@@ -1,0 +1,93 @@
+#Api2
+
+# CPU Monitor — utilization, temperature, per-core stats
+include("sources/cpu.source")
+
+# CPU temperature from thermal zones
+file("/sys/class/thermal/thermal_zone0/temp") {
+  XTempRaw = Grab(First)
+}
+Set XTempC = Val(XTempRaw) / 1000
+
+# Per-core usage from /proc/stat
+file("/proc/stat") {
+  XCore0User = RegEx("^cpu0 [\t ]*([0-9]+)")
+  XCore0Nice = RegEx("^cpu0 [\t ]*[0-9]+ ([0-9]+)")
+  XCore0Sys  = RegEx("^cpu0 [\t ]*(?:[0-9]+ ){2}([0-9]+)")
+  XCore0Idle = RegEx("^cpu0 [\t ]*(?:[0-9]+ ){3}([0-9]+)")
+  XCore1User = RegEx("^cpu1 [\t ]*([0-9]+)")
+  XCore1Nice = RegEx("^cpu1 [\t ]*[0-9]+ ([0-9]+)")
+  XCore1Sys  = RegEx("^cpu1 [\t ]*(?:[0-9]+ ){2}([0-9]+)")
+  XCore1Idle = RegEx("^cpu1 [\t ]*(?:[0-9]+ ){3}([0-9]+)")
+  XLoadAvg   = RegEx("^load average:[\t ]*([0-9.]+)")
+}
+
+# Derived utilization percentages
+Set XCore0Util = If((XCore0User+XCore0Nice+XCore0Sys+XCore0Idle) > 0,
+  (XCore0User-XCore0User.pval) / (XCore0User+XCore0Nice+XCore0Sys+XCore0Idle-
+   XCore0User.pval-XCore0Nice.pval-XCore0Sys.pval-XCore0Idle.pval), 0)
+Set XCore1Util = If((XCore1User+XCore1Nice+XCore1Sys+XCore1Idle) > 0,
+  (XCore1User-XCore1User.pval) / (XCore1User+XCore1Nice+XCore1Sys+XCore1Idle-
+   XCore1User.pval-XCore1Nice.pval-XCore1Sys.pval-XCore1Idle.pval), 0)
+
+export button "cpu-monitor" {
+  interval = 1000
+  style = If(XCpuPresent, "module_pill", "hidden")
+  class = "module"
+  tooltip = "CPU: " + Str(XCpuUtilization*100, 1) + "%\n" +
+    "Temp: " + Str(XTempC, 0) + "°C\n" +
+    "Load: " + $XLoadAvg
+  action = PopUp("CpuMonitorPopup")
+
+  grid {
+    style = "pill_grid"
+    image { value = "utilities-system-monitor-symbolic" }
+    progressbar {
+      value = XCpuUtilization
+      style = "pill_progress pill_progress_cpu"
+      min = 0
+      max = 1
+    }
+    label { value = Str(XCpuUtilization*100, 0) + "%" }
+  }
+}
+
+PopUp("CpuMonitorPopup") {
+  style = "detail_popup"
+  grid {
+    style = "detail_grid"
+    label {
+      value = "CPU Monitor"
+      style = "detail_header"
+    }
+    label {
+      style = "detail_value"
+      interval = 1000
+      value = "Usage: " + Str(XCpuUtilization*100, 1) + "%\n" +
+        "Temperature: " + Str(XTempC, 0) + "°C\n" +
+        "Load Average: " + $XLoadAvg
+    }
+    progressbar {
+      style = "detail_progress"
+      value = XCpuUtilization
+      min = 0
+      max = 1
+    }
+    label {
+      value = "Click to open htop"
+      style = "detail_hint"
+      action = Exec("foot -e htop")
+    }
+  }
+}
+
+#CSS
+chart#cpu_history {
+  background: rgba(127,127,127,0.3);
+  min-width: 60px;
+  min-height: 20px;
+  -GtkWidget-vexpand: true;
+  margin: 2px;
+  border: 1px solid @theme_fg_color;
+  color: #89b4fa;
+}

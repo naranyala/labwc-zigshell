@@ -57,7 +57,6 @@ pass "Config dir found: $CONFIG_DIR"
 # --- 3. Dependency check ---
 info "Checking dependencies..."
 DEPS=(swaybg)
-NEW_OPTIONAL_DEPS=(zebar foot rofi mako grim slurp wl-copy playerctl wpctl flameshot dms nautilus brightnessctl wlr-randr gnome-keyring-daemon xdotool inotifywait convert)
 LEGACY_OPTIONAL_DEPS=(crystal-dock noctalia)
 MISSING=()
 for dep in "${DEPS[@]}"; do

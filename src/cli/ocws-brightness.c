@@ -2,102 +2,34 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <math.h>
-#include <dirent.h>
-#include <time.h>
 #include <getopt.h>
-#include "ocws-easing.h"
+#include "../libocws/easing.h"
+#include "../libocws/sysfs.h"
 
-static char opt_device[64] = ""; // empty means auto-detect
+static char opt_device[64] = "";
 static int opt_step = 5;
 static int opt_duration = 200;
 static int opt_interval = 500;
-static char opt_format[32] = "sh"; // "sh" or "json"
+static char opt_format[32] = "sh";
 
 static int get_max_brightness(void) {
-    if (strlen(opt_device) > 0) {
-        char path[256];
-        snprintf(path, sizeof(path), "/sys/class/backlight/%s/max_brightness", opt_device);
-        FILE *f = fopen(path, "r");
-        if (f) {
-            int max_b = -1;
-            fscanf(f, "%d", &max_b);
-            fclose(f);
-            return max_b;
-        }
-        return -1;
-    }
-
-    DIR *d = opendir("/sys/class/backlight");
-    if (!d) return -1;
-    struct dirent *dir;
-    int max_b = -1;
-    while ((dir = readdir(d)) != NULL) {
-        if (dir->d_name[0] == '.') continue;
-        char path[256];
-        snprintf(path, sizeof(path), "/sys/class/backlight/%s/max_brightness", dir->d_name);
-        FILE *f = fopen(path, "r");
-        if (f) { fscanf(f, "%d", &max_b); fclose(f); strncpy(opt_device, dir->d_name, sizeof(opt_device)-1); break; }
-    }
-    closedir(d);
-    return max_b;
+    return sysfs_read_device_int("backlight", opt_device[0] ? opt_device : NULL,
+                                 "max_brightness", -1);
 }
 
 static int get_brightness(void) {
-    if (strlen(opt_device) > 0) {
-        char path[256];
-        snprintf(path, sizeof(path), "/sys/class/backlight/%s/brightness", opt_device);
-        FILE *f = fopen(path, "r");
-        if (f) {
-            int cur = -1;
-            fscanf(f, "%d", &cur);
-            fclose(f);
-            return cur;
-        }
-        return -1;
-    }
-
-    DIR *d = opendir("/sys/class/backlight");
-    if (!d) return -1;
-    struct dirent *dir;
-    int cur = -1;
-    while ((dir = readdir(d)) != NULL) {
-        if (dir->d_name[0] == '.') continue;
-        char path[256];
-        snprintf(path, sizeof(path), "/sys/class/backlight/%s/brightness", dir->d_name);
-        FILE *f = fopen(path, "r");
-        if (f) { fscanf(f, "%d", &cur); fclose(f); break; }
-    }
-    closedir(d);
-    return cur;
+    return sysfs_read_device_int("backlight", opt_device[0] ? opt_device : NULL,
+                                 "brightness", -1);
 }
 
 static int set_brightness_raw(int value) {
-    if (strlen(opt_device) > 0) {
-        char path[256];
-        snprintf(path, sizeof(path), "/sys/class/backlight/%s/brightness", opt_device);
-        FILE *f = fopen(path, "w");
-        if (f) {
-            fprintf(f, "%d\n", value);
-            fclose(f);
-            return 0;
-        }
-        return -1;
-    }
+    return sysfs_write_device_int("backlight", opt_device[0] ? opt_device : NULL,
+                                  "brightness", value);
+}
 
-    DIR *d = opendir("/sys/class/backlight");
-    if (!d) return -1;
-    struct dirent *dir;
-    int ret = -1;
-    while ((dir = readdir(d)) != NULL) {
-        if (dir->d_name[0] == '.') continue;
-        char path[256];
-        snprintf(path, sizeof(path), "/sys/class/backlight/%s/brightness", dir->d_name);
-        FILE *f = fopen(path, "w");
-        if (f) { fprintf(f, "%d\n", value); fclose(f); ret = 0; break; }
-    }
-    closedir(d);
-    return ret;
+static void apply_brightness(int value, void *ctx) {
+    (void)ctx;
+    set_brightness_raw(value);
 }
 
 static void animate_to(int target, int duration_ms) {
@@ -107,30 +39,7 @@ static void animate_to(int target, int duration_ms) {
     int cur = get_brightness();
     if (cur < 0) cur = target;
 
-    if (cur == target) return;
-
-    if (duration_ms <= 0) {
-        set_brightness_raw(target);
-        return;
-    }
-
-    int steps = duration_ms / 8;
-    if (steps < 1) steps = 1;
-
-    double start_val = (double)cur;
-    double end_val = (double)target;
-
-    for (int i = 1; i <= steps; i++) {
-        double t = (double)i / steps;
-        double eased = ease_out_cubic(t);
-        int val = (int)(start_val + (end_val - start_val) * eased + 0.5);
-        if (val < 0) val = 0;
-        if (val > max_b) val = max_b;
-        set_brightness_raw(val);
-        usleep(8000);
-    }
-
-    set_brightness_raw(target);
+    animate_int(cur, target, duration_ms, 8, 0, max_b, apply_brightness, NULL);
 }
 
 static void pct(int percent) {
@@ -248,7 +157,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (optind >= argc) { usage(argv[0]); return 1; }
-    
+
     const char *cmd = argv[optind];
 
     if (strcmp(cmd, "get") == 0) show();

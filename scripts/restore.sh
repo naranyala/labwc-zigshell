@@ -1,6 +1,5 @@
 #!/bin/bash
 #
-# restore.sh — Restore labwc + zebar configuration from backup
 #
 # Restores from timestamped backup archive created by backup.sh.
 
@@ -8,7 +7,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${HOME}/.config/labwc"
-ZEBAR_DIR="${HOME}/.config/zebar"
 BACKUP_BASE="${HOME}/.config/labwc-backups"
 
 RED='\033[0;31m'
@@ -126,14 +124,12 @@ fi
 section "Files to Restore"
 
 RESTORE_COUNT=0
-for dir in labwc zebar scripts dotfiles; do
   if [ -d "$EXTRACTED/$dir" ]; then
     for file in "$EXTRACTED/$dir"/*; do
       if [ -f "$file" ]; then
         local_name=$(basename "$file")
         case "$dir" in
           labwc) local_dest="$CONFIG_DIR/$local_name" ;;
-          zebar) local_dest="$ZEBAR_DIR/$local_name" ;;
           scripts) local_dest="$SCRIPT_DIR/$local_name" ;;
           dotfiles) local_dest="$SCRIPT_DIR/../dotfiles/$local_name" ;;
         esac
@@ -170,14 +166,12 @@ fi
 section "Restoring"
 
 RESTORED=0
-for dir in labwc zebar scripts dotfiles; do
   if [ -d "$EXTRACTED/$dir" ]; then
     for file in "$EXTRACTED/$dir"/*; do
       if [ -f "$file" ]; then
         local_name=$(basename "$file")
         case "$dir" in
           labwc) local_dest="$CONFIG_DIR/$local_name" ;;
-          zebar) local_dest="$ZEBAR_DIR/$local_name" ;;
           scripts) local_dest="$SCRIPT_DIR/$local_name" ;;
           dotfiles) local_dest="$SCRIPT_DIR/../dotfiles/$local_name" ;;
         esac

@@ -4,11 +4,12 @@ set -euo pipefail
 echo "Installing OCWS dependencies for Alpine Linux..."
 
 PKGS=(
-    labwc sfwbar rofi foot mako qt6ct fuzzel bc
+    labwc sfwbar rofi-wayland foot mako qt6ct fuzzel bc
     swaybg swayidle swaylock gammastep dunst
     playerctl wl-clipboard cliphist grim slurp flameshot
     jq crudini libxml2 brightnessctl wlr-randr nautilus
     gnome-keyring xdotool inotify-tools imagemagick wireplumber
+    noto-fonts dejavu-fonts
 )
 
 # Install packages

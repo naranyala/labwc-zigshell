@@ -9,5 +9,5 @@
   widget "battery-text"
   widget "bluetooth"
   widget "clock"
-  include("tray.widget")
+  include("widgets/core/tray.widget")
   widget "ocws-control-center"

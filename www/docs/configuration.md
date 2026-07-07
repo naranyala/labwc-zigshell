@@ -256,23 +256,49 @@ labwc --reconfigure
 
 OCWS ships a suite of compiled C utilities in `zig-out/bin/`, installed to `~/.local/bin/`.
 
+### CLI Tools
+
 | Binary | Purpose |
 |--------|---------|
-| `ocws sysmon` | System metrics in one pass |
-| `ocws clip` | Clipboard manager |
-| `ocws shot` | Screenshot tool |
-| `ocws lock` | Screen lock wrapper |
-| `ocws kv` | Key-value persistent store |
-| `ocws brightness` | Smooth backlight control |
-| `ocws volume` | Smooth PulseAudio volume control |
-| `ocws notify` | Native D-Bus notification daemon |
-| `ocws osd-notify` | Glassmorphic notification popup |
-| `ocws wallpaper` | Time-of-day wallpaper transitions |
-| `ocws color` | Wallpaper palette extraction |
-| `ocws ocr` | Screen OCR via Tesseract |
-| `ocws recorder` | Screen recording |
-| `ocws live-bg` | Animated live background |
-| `ocws hypertile` | Dynamic tiling layout |
+| `ocws-brightness` | Smooth backlight control with easing animation |
+| `ocws-volume` | Smooth PulseAudio volume control with easing |
+| `ocws-clip` | Clipboard manager (cliphist + fuzzel picker) |
+| `ocws-shot` | Screenshot tool (grim + slurp + annotation) |
+| `ocws-lock` | Screen lock wrapper (swaylock) |
+| `ocws-kv` | Key-value persistent store (flat file) |
+| `ocws-emit` | Event Bus IPC emitter (maps namespaces to sfwbar vars) |
+| `ocws-ocr` | Screen OCR via Tesseract/Leptonica |
+| `ocws-sysmon` | System metrics (CPU/mem/net/bat/bt/brightness/temp) |
+| `ocws-color` | Wallpaper palette extraction (median-cut) |
+| `ocws-recorder` | Screen recording (wf-recorder wrapper) |
+| `ocws-network-bandwidth` | Network bandwidth monitor (/proc/net/dev) |
+| `ocws-player` | Media player controller (playerctl wrapper) |
+| `ocws-search` | Multi-engine web search |
+| `ocws-state` | Persistent state manager (JSON state files) |
+| `ocws-validate` | System validator (dependencies, config, binaries) |
+| `ocws-style` | Theme engine CLI (INI → CSS generation) |
+| `ocws-tooltip` | GTK3 tooltip row builder |
+
+### Daemons
+
+| Binary | Purpose |
+|--------|---------|
+| `ocws-notify` | D-Bus notification daemon (replaces mako) |
+| `ocws-osd-notify` | Glassmorphic notification popup (GTK Layer Shell) |
+| `ocws-wallpaper` | Time-of-day wallpaper transitions (Cairo crossfade) |
+| `ocws-live-bg` | Animated live background (GTK Layer Shell) |
+| `ocws-hypertile` | Dynamic tiling for labwc (wlr-foreign-toplevel) |
+
+### GUI Apps
+
+| Binary | Purpose |
+|--------|---------|
+| `ocws-settings` | 11-tab control center (Shell, Appearance, Bar, Widgets, etc.) |
+| `ocws-welcome` | First-run setup wizard |
+| `ocws-workspace-mgr` | Kanban-style workspace/window manager |
+| `ocws-dock-mgr` | Dock pinned apps manager |
+| `ocws-dotdesktop-mgr` | .desktop file manager |
+| `ocws-pkgmgr` | Dependency resolver and build tool |
 
 Build all binaries:
 
@@ -402,3 +428,174 @@ The engine reads the INI, looks up `colors.bg`, and replaces `{{COLOR_BG}}` with
 9. `~/.config/mako/config` (from `templates/mako.ini.tmpl`)
 10. `~/.config/qt6ct/qt6ct.conf` (from `templates/qt6ct.conf.tmpl`)
 11. `~/.config/gtk-3.0/gtk.css` (from `templates/gtk.css.tmpl`)
+
+---
+
+## Modular Config System
+
+OCWS uses a modular configuration architecture in `dotfiles/ocws/modes/`. Each mode is composed from reusable config and CSS modules.
+
+### Mode Files
+
+| Mode | Description |
+|------|-------------|
+| `doublepanel.mode` | Dual-panel: top status bar + bottom dock/taskbar |
+| `crystaldock.mode` | Single status bar + external crystal-dock |
+| `minimal.mode` | Minimal bar: clock, volume, battery, tray only |
+
+### Config Modules
+
+| Module | Purpose |
+|--------|---------|
+| `modes/base.config` | Common settings (ImagePath, ThicknessHint, plugin autoloader) |
+| `modes/topbar.config` | Top status bar definition |
+| `modes/bottombar.config` | Bottom bar with dock + taskbar |
+| `modes/statusbar.config` | Single status bar (crystal-dock mode) |
+| `modes/desktop.config` | Desktop layer for floating widgets |
+
+### CSS Modules
+
+| Module | Purpose |
+|--------|---------|
+| `modes/css-glassmorphism.config` | Glassmorphism tokens and base styles |
+| `modes/css-bars.config` | Bar-specific panel styles |
+| `modes/css-widgets.config` | Widget button and pill styles |
+| `modes/css-taskbar.config` | Taskbar item styles |
+| `modes/css-dock.config` | Dock icon grid styles |
+| `modes/css-popups.config` | Popup and menu styles |
+
+### Using Modular Configs
+
+```bash
+# Start with a specific mode
+sfwbar -c ~/.config/ocws/modes/doublepanel.mode
+
+# Or use the mode selector
+sfwbar-mode start doublepanel
+sfwbar-mode start crystaldock
+sfwbar-mode start minimal
+```
+
+---
+
+## Exposed Settings
+
+`settings.config` exposes all user-configurable options:
+
+```ini
+# ~/.config/ocws/settings.config
+#Api2
+
+# Bar sizes
+Set OCWS_TOP_BAR_SIZE = "32"
+Set OCWS_BOTTOM_BAR_SIZE = "40"
+Set OCWS_STATUS_BAR_SIZE = "34"
+
+# Launcher command
+Set OCWS_LAUNCHER_COMMAND = "rofi -show drun"
+
+# Clock format
+Set OCWS_CLOCK_FORMAT = "%H:%M"
+
+# Taskbar
+Set OCWS_TASKBAR_ICONS = "true"
+Set OCWS_TASKBAR_LABELS = "false"
+Set OCWS_TASKBAR_ICON_SIZE = "28"
+
+# Visual settings
+Set OCWS_BG_ALPHA = "0.92"
+Set OCWS_TRANSITION_DURATION = "0.15s"
+
+# Feature toggles
+Set OCWS_FEATURE_DOCK = "true"
+Set OCWS_FEATURE_TASKBAR = "true"
+Set OCWS_FEATURE_DESKTOP_WIDGETS = "true"
+```
+
+---
+
+## Config Validation
+
+OCWS includes validators to catch config errors before deployment:
+
+```bash
+# Validate SFWBar configs
+scripts/validate-sfwbar.sh
+
+# Validate widget files
+scripts/validate-widgets.sh
+
+# Validate variable contract
+scripts/validate-contract.sh
+```
+
+### SFWBar Config Validator
+
+Checks for:
+- `#Api2` header presence
+- Brace and quote matching
+- Include file references
+- Duplicate bar names
+- Widget references
+- CSS token usage
+
+---
+
+## LLM Runner
+
+`ocws-llm-runner` is a local-first LLM chat and OCR assistant with GTK3 GUI.
+
+### Architecture
+
+```
+ocws-llm-runner/
+├── main.py              # Entry point
+├── server/
+│   ├── app.py           # Flask REST API
+│   ├── llm.py           # LLM inference (llama-cpp-python)
+│   ├── ocr.py           # OCR processor (Tesseract/ocws-ocr)
+│   └── sessions.py      # Session persistence
+├── gui/
+│   └── app.py           # GTK3 glassmorphic GUI
+└── utils/
+    └── __init__.py
+```
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/models` | GET | List available models |
+| `/api/model/load` | POST | Load a GGUF model |
+| `/api/model/eject` | POST | Unload current model |
+| `/api/model/switch` | POST | Switch to different model |
+| `/api/model/download` | POST | Download model from URL |
+| `/api/chat` | POST | Send message |
+| `/api/chat/stream` | POST | Stream response |
+| `/api/sessions` | GET/POST | List/create sessions |
+| `/api/sessions/<id>` | GET/PUT/DELETE | Session CRUD |
+| `/api/ocr` | POST | OCR uploaded image |
+| `/api/ocr/region` | POST | Capture region and OCR |
+
+### Usage
+
+```bash
+# Start GUI + server
+ocws-llm-runner
+
+# Start server only
+ocws-llm-runner --server-only
+
+# OCR an image
+ocws-llm-runner --ocr image.png
+```
+
+### Recommended Models
+
+| Category | Model | RAM |
+|----------|-------|-----|
+| Coding | Qwen2.5-Coder-1.5B | ~2GB |
+| Coding | DeepSeek-Coder-V2-Lite | ~3GB |
+| Vision | Llama-3.2-1B-Vision | ~2GB |
+| Lightweight | TinyLlama-1.1B | ~1GB |

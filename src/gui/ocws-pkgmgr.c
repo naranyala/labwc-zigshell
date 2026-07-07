@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include "utils.h"
 #include "ocws-theme-utils.h"
+#include "../libocws/gtk.h"
 
 #define APP_ID "org.ocws.pkgmgr"
 
@@ -610,34 +611,9 @@ static void on_update_all(GtkWidget *widget, gpointer data) {
 static void activate(GtkApplication *app, gpointer user_data) {
     (void)user_data;
 
-    /* Apply CSS */
-    GtkCssProvider *css = gtk_css_provider_new();
-    char css_buf[8192] = {0};
-    int css_pos = 0;
-
-    /* Load tokens.css if available */
-    css_pos = ocws_load_tokens_into_css(css_buf, sizeof(css_buf), css_pos);
-
-    /* App-specific CSS using @ocws_* tokens */
-    snprintf(css_buf + css_pos, sizeof(css_buf) - css_pos,
-        "window { background-color: @ocws_bg; color: @ocws_fg; }"
-        "headerbar { background-color: @ocws_mantle; color: @ocws_fg; border-bottom: 1px solid alpha(@ocws_fg,0.06); }"
-        "textview { background-color: @ocws_crust; color: @ocws_ok; font-family: 'Noto Sans Mono', monospace; font-size: 11px; padding: 8px; }"
-        "textview text { background-color: @ocws_crust; color: @ocws_ok; }"
-        ".dep-card { padding: 8px 12px; border-radius: 8px; border: 1px solid alpha(@ocws_fg,0.08); background-color: alpha(@ocws_surface0,0.6); margin-bottom: 4px; }"
-        "button { border-radius: 6px; padding: 4px 12px; background-color: alpha(@ocws_surface0,0.8); color: @ocws_fg; border: 1px solid alpha(@ocws_fg,0.08); }"
-        "button:hover { background-color: alpha(@ocws_accent,0.15); }"
-        "button.suggested-action { background-color: @ocws_accent; color: @ocws_bg; font-weight: bold; }"
-        ".dim-label { opacity: 0.6; font-size: 0.85em; }"
-        "separator { background-color: alpha(@ocws_fg,0.06); min-height: 1px; }"
-        "* { font-family: 'Noto Sans', 'Adwaita Sans', sans-serif; }"
-    );
-
-    gtk_css_provider_load_from_data(css, css_buf, -1, NULL);
-    gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
-        GTK_STYLE_PROVIDER(css), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-
     GtkWidget *window = gtk_application_window_new(app);
+    ocws_gtk_enforce_premium_theme();
+    ocws_gtk_apply_dynamic_css(app, NULL);
     gtk_window_set_title(GTK_WINDOW(window), "OCWS Package Manager");
     gtk_window_set_default_size(GTK_WINDOW(window), 900, 650);
     gtk_window_set_position(GTK_WINDOW(window), GTK_WIN_POS_CENTER);

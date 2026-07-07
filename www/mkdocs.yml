@@ -43,14 +43,11 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - Configuration & Architecture:
-    - Configuration: configuration.md
-    - Shell Modes Architecture: architecture-modes.md
+  - Configuration: configuration.md
   - Events API: events.md
   - Distro Packages: distro-packages.md
-  - Features & Tools:
-    - GUI Managers: gui-managers.md
-    - Local AI Assistant: ai-runner.md
+  - LLM Runner: llm-runner.md
+  - Modular Config: modular-config.md
   - Lessons Learned:
     - Overview: lessons/README.md
     - Shell Correctness:

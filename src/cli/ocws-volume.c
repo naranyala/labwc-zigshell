@@ -2,90 +2,43 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <math.h>
 #include <getopt.h>
-#include "ocws-easing.h"
+#include "../libocws/easing.h"
+#include "../libocws/audio.h"
 
 static char opt_device[64] = "@DEFAULT_SINK@";
 static int opt_step = 5;
 static int opt_duration = 200;
 static int opt_interval = 500;
-static char opt_format[32] = "sh"; // "sh" or "json"
+static char opt_format[32] = "sh";
 
-static int run_cmd(const char *cmd) {
-    return system(cmd);
-}
-
-static int get_volume(void) {
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "pactl get-sink-volume %s 2>/dev/null | grep -oP '\\d+%%' | head -1 | tr -d '%%'", opt_device);
-    FILE *f = popen(cmd, "r");
-    if (!f) return -1;
-    int vol = -1;
-    fscanf(f, "%d", &vol);
-    pclose(f);
-    return vol;
-}
-
-static int is_muted(void) {
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "pactl get-sink-mute %s 2>/dev/null", opt_device);
-    FILE *f = popen(cmd, "r");
-    if (!f) return 0;
-    char buf[64] = {0};
-    fgets(buf, sizeof(buf), f);
-    pclose(f);
-    return strstr(buf, "yes") != NULL;
+static void apply_volume(int value, void *ctx) {
+    (void)ctx;
+    audio_set_volume(opt_device, value);
 }
 
 static void animate_to(int target, int duration_ms) {
-    int cur = get_volume();
+    int cur = audio_get_volume(opt_device);
     if (cur < 0) cur = target;
-    if (cur == target) return;
-
     if (target < 0) target = 0;
     if (target > 150) target = 150;
 
-    int steps = duration_ms / 10;
-    if (steps < 1) steps = 1;
-
-    double start_val = (double)cur;
-    double end_val = (double)target;
-
-    for (int i = 1; i <= steps; i++) {
-        double t = (double)i / steps;
-        double eased = ease_out_cubic(t);
-        int val = (int)(start_val + (end_val - start_val) * eased + 0.5);
-        if (val < 0) val = 0;
-        if (val > 150) val = 150;
-
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "pactl set-sink-volume %s %d%% 2>/dev/null", opt_device, val);
-        run_cmd(cmd);
-        usleep(10000);
-    }
-    
-    // Ensure final state is set properly
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "pactl set-sink-volume %s %d%% 2>/dev/null", opt_device, target);
-    run_cmd(cmd);
+    animate_int(cur, target, duration_ms, 10, 0, 150, apply_volume, NULL);
 }
 
 static void pct(int percent) {
     if (percent < 0) percent = 0;
     if (percent > 150) percent = 150;
-    
+
     if (opt_duration > 0) {
         animate_to(percent, opt_duration);
     } else {
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "pactl set-sink-volume %s %d%% 2>/dev/null", opt_device, percent);
-        run_cmd(cmd);
+        audio_set_volume(opt_device, percent);
     }
 }
 
 static void adjust(int delta) {
-    int cur = get_volume();
+    int cur = audio_get_volume(opt_device);
     if (cur < 0) cur = 50;
 
     int target = cur + (delta > 0 ? opt_step : -opt_step);
@@ -95,31 +48,17 @@ static void adjust(int delta) {
     if (opt_duration > 0) {
         animate_to(target, opt_duration);
     } else {
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "pactl set-sink-volume %s %d%% 2>/dev/null", opt_device, target);
-        run_cmd(cmd);
+        audio_set_volume(opt_device, target);
     }
-}
-
-static void toggle_mute(void) {
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "pactl set-sink-mute %s toggle 2>/dev/null", opt_device);
-    run_cmd(cmd);
-}
-
-static const char* get_icon(int vol, int muted) {
-    if (muted || vol == 0) return "audio-volume-muted-symbolic";
-    if (vol < 33) return "audio-volume-low-symbolic";
-    if (vol < 66) return "audio-volume-medium-symbolic";
-    return "audio-volume-high-symbolic";
 }
 
 static void print_state(int vol, int muted) {
     if (vol < 0) vol = 0;
-    const char *icon = get_icon(vol, muted);
+    const char *icon = audio_get_icon(vol, muted);
 
     if (strcmp(opt_format, "json") == 0) {
-        printf("{\"volume\": %d, \"muted\": %s, \"icon\": \"%s\"}\n", vol, muted ? "true" : "false", icon);
+        printf("{\"volume\": %d, \"muted\": %s, \"icon\": \"%s\"}\n",
+               vol, muted ? "true" : "false", icon);
     } else {
         printf("VOLUME=%d\n", vol);
         printf("VOLUME_MUTED=%s\n", muted ? "true" : "false");
@@ -129,15 +68,15 @@ static void print_state(int vol, int muted) {
 }
 
 static void show(void) {
-    print_state(get_volume(), is_muted());
+    print_state(audio_get_volume(opt_device), audio_is_muted(opt_device));
 }
 
 static void monitor(void) {
     int last_vol = -1;
     int last_mute = -1;
     while (1) {
-        int vol = get_volume();
-        int muted = is_muted();
+        int vol = audio_get_volume(opt_device);
+        int muted = audio_is_muted(opt_device);
         if (vol >= 0 && (vol != last_vol || muted != last_mute)) {
             print_state(vol, muted);
             last_vol = vol;
@@ -145,18 +84,6 @@ static void monitor(void) {
         }
         usleep(opt_interval * 1000);
     }
-}
-
-static void set_default_sink(const char *name) {
-    char cmd[256];
-    snprintf(cmd, sizeof(cmd), "pactl set-default-sink %s 2>/dev/null", name);
-    if (run_cmd(cmd) != 0) {
-        fprintf(stderr, "error: failed to set default sink: %s\n", name);
-    }
-}
-
-static void list_sinks(void) {
-    run_cmd("pactl list sinks short 2>/dev/null");
 }
 
 static void usage(const char *prog) {
@@ -214,19 +141,22 @@ int main(int argc, char *argv[]) {
     }
 
     if (optind >= argc) { usage(argv[0]); return 1; }
-    
+
     const char *cmd = argv[optind];
 
     if (strcmp(cmd, "get") == 0) show();
     else if (strcmp(cmd, "set") == 0 && optind + 1 < argc) pct(atoi(argv[optind + 1]));
     else if (strcmp(cmd, "up") == 0) adjust(1);
     else if (strcmp(cmd, "down") == 0) adjust(-1);
-    else if (strcmp(cmd, "mute") == 0) toggle_mute();
+    else if (strcmp(cmd, "mute") == 0) audio_toggle_mute(opt_device);
     else if (strcmp(cmd, "min") == 0) pct(0);
     else if (strcmp(cmd, "max") == 0) pct(100);
     else if (strcmp(cmd, "monitor") == 0) monitor();
-    else if (strcmp(cmd, "list") == 0) list_sinks();
-    else if (strcmp(cmd, "sink") == 0 && optind + 1 < argc) set_default_sink(argv[optind + 1]);
+    else if (strcmp(cmd, "list") == 0) audio_list_sinks();
+    else if (strcmp(cmd, "sink") == 0 && optind + 1 < argc) {
+        if (audio_set_default_sink(argv[optind + 1]) != 0)
+            fprintf(stderr, "error: failed to set default sink: %s\n", argv[optind + 1]);
+    }
     else { usage(argv[0]); return 1; }
 
     return 0;

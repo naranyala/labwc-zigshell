@@ -3,5 +3,5 @@
   include("widget-sets/status.set")
   widget "media-player"
   widget "clock"
-  include("tray.widget")
+  include("widgets/core/tray.widget")
   widget "ocws-control-center"

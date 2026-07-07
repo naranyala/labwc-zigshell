@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include "../libocws/gtk.h"
 #include <json-c/json.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -208,6 +209,9 @@ static void scan_models(GtkComboBoxText *combo) {
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
+    ocws_gtk_enforce_premium_theme();
+    ocws_gtk_apply_dynamic_css(app, NULL);
+    
     GtkWidget *window = gtk_application_window_new(app);
     gtk_window_set_default_size(GTK_WINDOW(window), 800, 700);
     

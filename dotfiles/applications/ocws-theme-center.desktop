@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OCWS Theme Center
+Comment=Browse, preview, and apply OCWS themes
+Exec=ocws-theme-center
+Icon=preferences-desktop-theme
+Terminal=false
+Categories=System;Settings;
+Keywords=theme;ocws;labwc;desktop;

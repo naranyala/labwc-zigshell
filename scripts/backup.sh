@@ -1,6 +1,5 @@
 #!/bin/bash
 #
-# backup.sh — Backup labwc + zebar configuration
 #
 # Creates timestamped backup of all config files.
 # Supports incremental (only changed files) and full backup.
@@ -9,7 +8,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${HOME}/.config/labwc"
-ZEBAR_DIR="${HOME}/.config/zebar"
 BACKUP_BASE="${HOME}/.config/labwc-backups"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP_DIR="${BACKUP_BASE}/${TIMESTAMP}"
@@ -57,7 +55,6 @@ echo ""
 
 # Create backup directory
 mkdir -p "$BACKUP_DIR/labwc"
-mkdir -p "$BACKUP_DIR/zebar"
 mkdir -p "$BACKUP_DIR/scripts"
 mkdir -p "$BACKUP_DIR/dotfiles"
 
@@ -76,7 +73,6 @@ backup_file() {
   if [ "$MODE" = "incremental" ]; then
     # Check if file changed since last backup
     local last_backup=""
-    for dir in $(ls -1d "$BACKUP_BASE"/*/labwc "$BACKUP_BASE"/*/zebar 2>/dev/null | head -20); do
       if [ -f "$dir/$filename" ]; then
         last_backup="$dir/$filename"
         break
@@ -103,11 +99,6 @@ for cfg in rc.xml autostart environment menu.xml themerc-override; do
   backup_file "$CONFIG_DIR/$cfg" "$BACKUP_DIR/labwc"
 done
 
-# --- Backup zebar config ---
-section "zebar config"
-if [ -d "$ZEBAR_DIR" ]; then
-  backup_file "$ZEBAR_DIR/main/index.html" "$BACKUP_DIR/zebar"
-  backup_file "$ZEBAR_DIR/main/style.css" "$BACKUP_DIR/zebar"
 fi
 
 # --- Backup scripts ---

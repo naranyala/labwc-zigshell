@@ -34,7 +34,6 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Options:"
       echo "  --dry-run     Show what would be removed without deleting"
-      echo "  --all         Also remove cached wallpaper sources, temp zebar data"
       echo "  --help        Show this help"
       echo ""
       exit 0
@@ -107,10 +106,8 @@ if [ -d "$BACKUP_BASE" ]; then
   fi
 fi
 
-# --- Zebar temp data ---
 if $AGGRESSIVE; then
   section "Cached Data"
-  REMOVE_DIR "${HOME}/.cache/zebar" "zebar cache"
   REMOVE_DIR "${HOME}/.cache/labwc" "labwc cache"
 fi
 

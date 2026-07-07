@@ -1,6 +1,6 @@
 # Desktop widget set — floating widgets for background layer
 # Include this set to enable desktop widgets
 
-include("desktop-clock.widget")
-include("desktop-weather.widget")
-include("desktop-sysmon.widget")
+include("widgets/core/desktop-clock.widget")
+include("widgets/applets/desktop-weather.widget")
+include("widgets/system/desktop-sysmon.widget")

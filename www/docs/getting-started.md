@@ -140,14 +140,32 @@ Keybindings are defined in `~/.config/labwc/rc.xml`.
 
 ### Shell Modes
 
-OCWS provides multiple desktop paradigms through its modular configuration. You can switch between them on the fly using the GUI:
+OCWS provides multiple desktop paradigms through its modular configuration. You can switch between them on the fly:
 
 ```bash
-# Launch the graphical settings app
-ocws-settings
+# Interactive UI
+shell-mode-picker.sh
+
+# CLI
+toggle-shell doublepanel   # OCWS dual-panel (default)
+toggle-shell crystaldock   # sfwbar statusbar + crystal-dock
+toggle-shell minimal       # minimal sfwbar (clock, volume, battery)
+toggle-shell dms           # DankMaterialShell
+toggle-shell noctalia      # Noctalia shell
+
+# Using the new mode selector
+sfwbar-mode start doublepanel
+sfwbar-mode start crystaldock
+sfwbar-mode start minimal
+sfwbar-mode status
+sfwbar-mode validate
 ```
 
-From here you can select between the **Single-Bar** mode and the **Double-Panel** layout (top status bar + bottom dock).
+Or use the graphical settings app:
+
+```bash
+ocws-settings
+```
 
 ### Control Center
 

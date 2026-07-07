@@ -12,11 +12,15 @@
 #include "settings/settings-ui.h"
 #include "settings/settings-tabs.h"
 #include <gtk/gtk.h>
+#include "../libocws/gtk.h"
 
 static void activate(GtkApplication *app, gpointer user_data) {
     (void)user_data;
     init_paths();
-    apply_css(app);
+    
+    // Abstracted premium GTK injection
+    ocws_gtk_enforce_premium_theme();
+    ocws_gtk_apply_dynamic_css(app, NULL); // NULL defaults to standard mocha accent
 
     GtkWidget *window = gtk_application_window_new(app);
     gtk_window_set_title(GTK_WINDOW(window), "OCWS Settings");

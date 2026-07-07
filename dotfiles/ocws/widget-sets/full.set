@@ -1,4 +1,4 @@
   widget "media-player"
   widget "clock"
   widget "ocws-control-center"
-  include("tray.widget")
+  include("widgets/core/tray.widget")

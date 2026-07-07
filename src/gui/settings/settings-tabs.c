@@ -155,6 +155,21 @@ GtkWidget* build_appearance_tab(void) {
     gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Corner Radius", 12, 0, 30, "px", "ocws-kv set theme corner_radius %d; labwc -r &"), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(content), create_live_toggle_row("Window Blur", "Enable background blur for transparent windows", TRUE, "ocws-kv set theme window_blur 1; labwc -r &", "ocws-kv set theme window_blur 0; labwc -r &"), FALSE, FALSE, 0);
 
+    // Theme Center button (always visible)
+    GtkWidget *tc_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_widget_set_margin_top(tc_row, 8);
+    GtkWidget *tc_lbl = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(tc_lbl),
+        "<b>Advanced Theme Management</b>\n"
+        "<span size='small'>Browse, preview, and apply themes across all config surfaces</span>");
+    gtk_label_set_xalign(GTK_LABEL(tc_lbl), 0.0);
+    gtk_box_pack_start(GTK_BOX(tc_row), tc_lbl, TRUE, TRUE, 0);
+    GtkWidget *tc_btn = gtk_button_new_with_label("Open Theme Center");
+    g_signal_connect(tc_btn, "clicked", G_CALLBACK(execute_command),
+                     (gpointer)"ocws-theme-center &");
+    gtk_box_pack_start(GTK_BOX(tc_row), tc_btn, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), tc_row, FALSE, FALSE, 0);
+
     return scroll;
 }
 

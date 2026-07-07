@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=OCWS Fonts Manager
+GenericName=Font Manager
+Comment=Scan system fonts, install online fonts, manage dotfiles font configuration
+Exec=bash -c "$HOME/.local/bin/ocws-fonts-mgr"
+Icon=preferences-desktop-font
+Terminal=false
+Type=Application
+Categories=Settings;System;DesktopSettings;
+Keywords=font;fonts;install;nerd;fontconfig;
+StartupNotify=true

@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "wlr-foreign-toplevel-management-unstable-v1-client.h"
+#include "../libocws/gtk.h"
 
 #define APP_ID           "org.ocws.workspace-mgr"
 #define PRESETS_FILE     ".config/ocws/workspace-presets.ini"
@@ -599,60 +600,6 @@ static void rebuild_columns(void) {
 }
 
 /* ================================================================
- * CSS
- * ================================================================ */
-
-static void apply_css(void) {
-    GtkCssProvider *provider = gtk_css_provider_new();
-    char css[4096] = {0};
-
-    /* Load tokens.css if available */
-    const char *home = getenv("HOME");
-    if (!home) home = "/tmp";
-    char tokpath[512];
-    snprintf(tokpath, sizeof(tokpath), "%s/.config/ocws/tokens.css", home);
-    FILE *f = fopen(tokpath, "r");
-    int pos = 0;
-    if (f) {
-        size_t n = fread(css, 1, sizeof(css) - 2048, f);
-        fclose(f);
-        pos = (int)n;
-    }
-
-    /* Fallback tokens */
-    if (pos == 0) {
-        pos = snprintf(css, sizeof(css),
-            "@define-color ocws_bg #1e1e2e;"
-            "@define-color ocws_fg #cdd6f4;"
-            "@define-color ocws_surface0 #313244;"
-            "@define-color ocws_surface1 #45475a;"
-            "@define-color ocws_accent #89b4fa;"
-        );
-    }
-
-    snprintf(css + pos, sizeof(css) - pos,
-        "window { background-color: @ocws_bg; color: @ocws_fg; }"
-        "headerbar { background-color: alpha(@ocws_surface0,0.8); color: @ocws_fg; border: none; }"
-        ".ws-column { background-color: alpha(@ocws_surface0,0.4); border: 1px solid alpha(@ocws_fg,0.06); border-radius: 12px; }"
-        ".ws-column:hover { border-color: alpha(@ocws_accent,0.2); }"
-        ".win-card { background-color: alpha(@ocws_surface0,0.6); border: 1px solid alpha(@ocws_fg,0.06); border-radius: 8px; padding: 6px 8px; }"
-        ".win-card:hover { background-color: alpha(@ocws_accent,0.08); border-color: alpha(@ocws_accent,0.2); }"
-        "button { border-radius: 6px; padding: 2px 6px; background-color: alpha(@ocws_surface0,0.6); color: @ocws_fg; border: 1px solid alpha(@ocws_fg,0.06); min-height: 0px; }"
-        "button:hover { background-color: alpha(@ocws_accent,0.12); }"
-        "button.suggested-action { background-color: @ocws_accent; color: @ocws_bg; font-weight: bold; }"
-        ".dim-label { opacity: 0.6; font-size: 0.85em; }"
-        "separator { background-color: alpha(@ocws_fg,0.06); min-height: 1px; }"
-        "scrollbar slider { min-width: 6px; border-radius: 3px; background-color: alpha(@ocws_fg,0.2); }"
-        "* { font-family: 'Noto Sans', 'Adwaita Sans', sans-serif; }"
-    );
-
-    gtk_css_provider_load_from_data(provider, css, -1, NULL);
-    gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
-        GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-    g_object_unref(provider);
-}
-
-/* ================================================================
  * App activation
  * ================================================================ */
 
@@ -666,7 +613,8 @@ static void activate(GtkApplication *app, gpointer user_data) {
     (void)user_data;
 
     GtkWidget *window = gtk_application_window_new(app);
-    apply_css();
+    ocws_gtk_enforce_premium_theme();
+    ocws_gtk_apply_dynamic_css(app, NULL);
 
     gtk_window_set_title(GTK_WINDOW(window), "OCWS Workspace Manager");
     gtk_window_set_default_size(GTK_WINDOW(window), 1100, 600);

@@ -114,7 +114,7 @@
     <keybind key="W-v"><action name="Execute"><command>cliphist list | rofi -dmenu | cliphist decode | wl-copy</command></action></keybind>
 
     <!-- Quick Settings -->
-    <keybind key="C-S-n"><action name="Execute"><command>~/.config/labwc/autostart &amp; gammastep -m randr -t 6500:3500 -g 1.0 -r || pkill -x gammastep</command></action></keybind>
+    <keybind key="C-S-n"><action name="Execute"><command>gammastep -m randr -t 6500:3500 -g 1.0 -r || pkill -x gammastep</command></action></keybind>
 
     <!-- Web Search -->
     <keybind key="W-s"><action name="Execute"><command>ocws search</command></action></keybind>
