@@ -90,29 +90,45 @@ esac
 
 echo -e "  Selected: ${CYAN}${LAUNCHER_DESC}${NC}"
 
-# 1. Check for comprehensive distro-specific installer
-if [ -f "${SCRIPT_DIR}/install-distribution.sh" ]; then
-    echo -e "\n  ${GREEN}✓${NC} Enhanced distro-specific installer found."
-    echo -e "  ${CYAN}=== OCWS Installer ===${NC}"
-    echo -e "  ${CYAN}  Quick Mode:${NC} All manual config steps"
-    echo -e "  ${CYAN}  Full Mode:${NC}  Automatic package installation"
-    echo -e "\n  Choose option:"
-    echo -e "    1) Quick Install (manual dependency setup)"
-    echo -e "    2) Full Install (automatic distro detection and package installation)"
-    echo -e "\n  Default: 1 (Quick Install)"
-    echo -n "    Enter choice [1-2]: "
+# 1. Dependency Resolution Menu
+if [ -f "${SCRIPT_DIR}/install-distribution.sh" ] && [ -f "${SCRIPT_DIR}/build-ocws-core.sh" ]; then
+    echo -e "\n  ${GREEN}✓${NC} Installers detected."
+    echo -e "  ${CYAN}=== Dependency Resolution ===${NC}"
+    echo -e "    1) Auto Install (Use package manager for standard deps)"
+    echo -e "    2) Compile Core (Build labwc, sfwbar, fuzzel from source)"
+    echo -e "    3) Skip (Just deploy dotfiles)"
+    echo -e "\n  Default: 1 (Auto Install)"
+    echo -n "    Enter choice [1-3]: "
 
     read -r choice
 
     case "${choice:-1}" in
-        2)
-            echo -e "\n${CYAN}==>${NC} Starting comprehensive distribution installer..."
+        1)
+            echo -e "\n${CYAN}==>${NC} Starting distribution package installer..."
             bash "${SCRIPT_DIR}/install-distribution.sh" "$@"
             ;;
+        2)
+            echo -e "\n${CYAN}==>${NC} Starting source compilation for core engines..."
+            bash "${SCRIPT_DIR}/build-ocws-core.sh" all
+            ;;
         *)
-            echo -e "\n${CYAN}==>${NC} Starting quick installer..."
+            echo -e "\n${CYAN}==>${NC} Skipping standard dependency resolution..."
             ;;
     esac
+
+    # Handle custom/community shells
+    if [[ "$MODE" == "dms" || "$MODE" == "crystaldock" ]]; then
+        echo -e "\n${YELLOW}⚠${NC} Your chosen shell mode (${MODE}) requires a custom engine."
+        echo -n "  Would you like to automatically clone and compile it now? [y/N]: "
+        read -r build_community
+        if [[ "$build_community" =~ ^[Yy]$ ]]; then
+            bash "${SCRIPT_DIR}/build-ocws-core.sh" "$MODE"
+        else
+            echo -e "  Skipping. You will need to install it manually."
+        fi
+    elif [[ "$MODE" == "noctalia" ]]; then
+        echo -e "\n${YELLOW}⚠${NC} Noctalia is a custom wrapper that requires manual setup."
+    fi
 fi
 
 # -------------------------------------------------------------------
