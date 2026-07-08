@@ -575,13 +575,14 @@ void apply_css(GtkApplication *app) {
 
     /* Application CSS — references @ocws_* variables defined above */
     snprintf(css + pos, sizeof(css) - pos,
-        ".settings-card { background-color: alpha(@ocws_bg, 0.85); border: 1px solid alpha(@ocws_fg, 0.08); border-radius: 16px; padding: 16px; }"
-        ".collapsible-header { cursor: pointer; }"
+        ".settings-card { background-color: alpha(@ocws_bg, 0.85); border: 1px solid alpha(@ocws_fg, 0.08); border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px alpha(black, 0.2); transition: all 200ms ease; }"
+        ".settings-card:hover { box-shadow: 0 6px 16px alpha(black, 0.3); border-color: alpha(@ocws_accent, 0.2); }"
+        ".collapsible-header { cursor: pointer; transition: all 150ms ease; }"
         ".collapsible-header:hover { background-color: alpha(@ocws_accent, 0.1); border-radius: 8px; }"
-        ".shell-card { padding: 20px; border-radius: 12px; border: 1px solid alpha(@ocws_fg, 0.08); background-color: alpha(@ocws_surface0, 0.75); transition: all 200ms ease; }"
-        ".shell-card:hover { background-color: alpha(@ocws_accent, 0.15); border-color: alpha(@ocws_accent, 0.3); }"
+        ".shell-card { padding: 20px; border-radius: 12px; border: 1px solid alpha(@ocws_fg, 0.08); background-color: alpha(@ocws_surface0, 0.75); transition: all 200ms ease; box-shadow: 0 4px 12px alpha(black, 0.2); }"
+        ".shell-card:hover { background-color: alpha(@ocws_accent, 0.15); border-color: alpha(@ocws_accent, 0.4); box-shadow: 0 8px 24px alpha(black, 0.4); }"
         ".dim-label { opacity: 0.7; font-size: 0.9em; }"
-        "textview.terminal { font-family: 'Noto Sans Mono', monospace; font-size: 12px; background-color: @ocws_bg; color: @ocws_fg; padding: 12px; }"
+        "textview.terminal { font-family: 'Noto Sans Mono', monospace; font-size: 12px; background-color: @ocws_mantle; color: @ocws_fg; padding: 12px; border-radius: 8px; border: 1px solid alpha(@ocws_fg, 0.1); box-shadow: inset 0 2px 4px alpha(black, 0.2); }"
         "notebook tab { padding: 8px 16px; }"
         "switch { min-width: 48px; min-height: 24px; }"
         "scale trough { min-height: 6px; border-radius: 3px; }"

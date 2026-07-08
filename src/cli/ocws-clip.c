@@ -3,6 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
 
 #define RED     "\033[0;31m"
 #define GREEN   "\033[0;32m"
@@ -85,24 +87,36 @@ void copy_text(int argc, char *argv[]) {
     }
     
     if (strlen(text) > 0) {
-        FILE *fp = popen("wl-copy", "w");
-        if (fp) {
-            fwrite(text, 1, strlen(text), fp);
-            pclose(fp);
-            printf("%s✓%s Copied: %s\n", GREEN, NC, text);
+        pid_t pid = fork();
+        if (pid == 0) {
+            execlp("wl-copy", "wl-copy", text, NULL);
+            _exit(1);
+        } else if (pid > 0) {
+            int status;
+            waitpid(pid, &status, 0);
+            if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+                printf("%s✓%s Copied: %s\n", GREEN, NC, text);
         }
     }
 }
 
 void paste_text() {
     if (check_cmd("wl-paste")) {
-        system("wl-paste");
+        pid_t pid = fork();
+        if (pid == 0) {
+            execlp("wl-paste", "wl-paste", NULL);
+            _exit(1);
+        } else if (pid > 0) {
+            int status;
+            waitpid(pid, &status, 0);
+        }
     }
 }
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
+    umask(0077);
     const char *mode = "show";
     if (argc > 1) mode = argv[1];
     

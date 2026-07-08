@@ -25,8 +25,64 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include "utils.h"
+#include <sys/wait.h>
+#include <stdarg.h>
+#include <time.h>
 
 static void free_ptr(gpointer data, GClosure *closure);
+
+static void log_msg(const char *fmt, ...) {
+    char path[512];
+    snprintf(path, sizeof(path), "%s/.cache/ocws-welcome.log", getenv("HOME") ? getenv("HOME") : "/tmp");
+    FILE *f = fopen(path, "a");
+    if (!f) return;
+    
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    char tbuf[64];
+    strftime(tbuf, sizeof(tbuf), "%Y-%m-%d %H:%M:%S", t);
+    
+    fprintf(f, "[%s] ", tbuf);
+    
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(f, fmt, args);
+    va_end(args);
+    
+    fprintf(f, "\n");
+    fclose(f);
+}
+
+static int run_cmd_logged(const char *cmd) {
+    log_msg("EXEC: %s", cmd);
+    int rc = system(cmd);
+    if (rc != 0) {
+        log_msg("ERROR: command failed with code %d: %s", WEXITSTATUS(rc), cmd);
+    } else {
+        log_msg("SUCCESS: %s", cmd);
+    }
+    return rc;
+}
+
+static void send_notification(const char *title, const char *body, const char *icon) {
+    char cmd[1024];
+    snprintf(cmd, sizeof(cmd), "notify-send -i '%s' '%s' '%s' &", icon ? icon : "info", title, body);
+    run_cmd_logged(cmd);
+}
+
+/* Shell-safe string: rejects shell metacharacters */
+static int is_shell_safe(const char *s) {
+    if (!s || !*s) return 0;
+    for (const char *p = s; *p; p++) {
+        char c = *p;
+        if (c == ';' || c == '|' || c == '&' || c == '$' ||
+            c == '(' || c == ')' || c == '{' || c == '}' ||
+            c == '`' || c == '"' || c == '\'' || c == '\\' ||
+            c == '\n' || c == '\r' || c == '<' || c == '>')
+            return 0;
+    }
+    return 1;
+}
 
 /* ================================================================
  * Constants
@@ -46,10 +102,10 @@ static GtkWidget *g_btn_next   = NULL;
 static GtkWidget *g_checkbox   = NULL;
 static GtkWidget *g_shell_status = NULL;
 static int        g_page       = 0;
-static const int  TOTAL_PAGES  = 7;
+static const int  TOTAL_PAGES  = 10;
 
 static const char *PAGE_NAMES[] = {
-    "intro", "shell", "theme", "options", "tools", "thanks", "finish"
+    "intro", "health", "monitors", "mount", "shell", "theme", "options", "tools", "thanks", "finish"
 };
 
 /* ================================================================
@@ -124,9 +180,10 @@ static void on_shell_select(GtkWidget *btn, gpointer data) {
     /* Run toggle-shell to completion (it kills the old shell and starts
      * the new one) BEFORE updating the UI, so the selection state always
      * reflects what is actually running. */
-    int rc = system(cmd);
+    int rc = run_cmd_logged(cmd);
 
     if (rc == 0) {
+        send_notification("Shell Mode", "Successfully switched shell mode", "preferences-desktop");
         highlight_selected(btn);
         if (g_shell_status) {
             char *msg = g_strdup_printf("Active shell: %s", mode);
@@ -144,10 +201,17 @@ static void on_shell_select(GtkWidget *btn, gpointer data) {
 static void on_theme_select(GtkWidget *btn, gpointer data) {
     const char *theme_name = (const char *)data;
 
+    /* Validate theme name — reject shell metacharacters */
+    if (!theme_name || !is_shell_safe(theme_name)) {
+        g_warning("rejected unsafe theme name");
+        return;
+    }
+
     /* Use theme.sh which handles INI lookup, template expansion, and labwc reload */
     char cmd[512];
     snprintf(cmd, sizeof(cmd), "theme.sh %s", theme_name);
     run_cmd_async(cmd);
+    send_notification("Theme Applied", theme_name, "color-select-color");
     highlight_selected(btn);
 }
 
@@ -161,13 +225,18 @@ static void on_randomize_wallpaper(GtkWidget *w, gpointer data) {
     run_cmd_async("wallpaper random");
 }
 
+static void on_test_notification(GtkWidget *w, gpointer data) {
+    (void)w; (void)data;
+    send_notification("OCWS Ready", "Notifications are working perfectly!", "emblem-ok-symbolic");
+}
+
 static void on_toggle_changed(GtkSwitch *sw, GParamSpec *pspec, gpointer data) {
     (void)pspec;
     const char *cmd_prefix = (const char *)data;
     gboolean active = gtk_switch_get_active(sw);
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "%s %s &", cmd_prefix, active ? "true" : "false");
-    system(cmd);
+    run_cmd_logged(cmd);
 }
 
 /* ================================================================
@@ -235,6 +304,253 @@ static GtkWidget *build_intro_page(void) {
     gtk_label_set_line_wrap(GTK_LABEL(desc), TRUE);
     gtk_label_set_xalign(GTK_LABEL(desc), 0.0);
     gtk_box_pack_start(GTK_BOX(vbox), desc, FALSE, FALSE, 4);
+
+    return page;
+}
+
+/* ---- Page: System Health ---- */
+static void on_install_missing(GtkWidget *btn, gpointer data) {
+    (void)data;
+    send_notification("Package Manager", "Opening package manager...", "system-software-install");
+    run_cmd_logged("ocws-pkgmgr &");
+    gtk_button_set_label(GTK_BUTTON(btn), "Opened Package Manager");
+}
+
+static GtkWidget *build_health_page(void) {
+    GtkWidget *page = make_page_box();
+    GtkWidget *vbox = get_page_content(page);
+
+    GtkWidget *title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(title),
+        "<span size='x-large' weight='bold'>System Health</span>");
+    gtk_label_set_xalign(GTK_LABEL(title), 0.0);
+    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
+
+    GtkWidget *desc = gtk_label_new(
+        "Check if recommended dependencies are installed.");
+    gtk_label_set_line_wrap(GTK_LABEL(desc), TRUE);
+    gtk_label_set_xalign(GTK_LABEL(desc), 0.0);
+    gtk_box_pack_start(GTK_BOX(vbox), desc, FALSE, FALSE, 4);
+
+    gtk_box_pack_start(GTK_BOX(vbox), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 8);
+
+    const char *deps[] = {
+        "grim", "slurp", "wl-clipboard", "fuzzel", "swayosd-server", "playerctl"
+    };
+    int missing = 0;
+
+    for (size_t i = 0; i < sizeof(deps)/sizeof(deps[0]); i++) {
+        GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_widget_set_margin_bottom(row, 4);
+        
+        char *path = g_find_program_in_path(deps[i]);
+        gboolean found = (path != NULL);
+        if (path) g_free(path);
+        if (!found) missing++;
+
+        GtkWidget *icon = gtk_image_new_from_icon_name(
+            found ? "emblem-default" : "dialog-error", GTK_ICON_SIZE_BUTTON);
+        gtk_box_pack_start(GTK_BOX(row), icon, FALSE, FALSE, 0);
+
+        GtkWidget *lbl = gtk_label_new(deps[i]);
+        gtk_label_set_xalign(GTK_LABEL(lbl), 0.0);
+        gtk_box_pack_start(GTK_BOX(row), lbl, TRUE, TRUE, 0);
+        
+        gtk_box_pack_start(GTK_BOX(vbox), row, FALSE, FALSE, 0);
+    }
+
+    if (missing > 0) {
+        GtkWidget *btn = gtk_button_new_with_label("Install Missing");
+        g_signal_connect(btn, "clicked", G_CALLBACK(on_install_missing), NULL);
+        gtk_box_pack_start(GTK_BOX(vbox), btn, FALSE, FALSE, 10);
+    }
+
+    return page;
+}
+
+/* ---- Page: Monitors ---- */
+static void on_open_wlr_randr(GtkWidget *btn, gpointer data) {
+    (void)data;
+    run_cmd_logged("foot -e sh -c 'wlr-randr; echo; echo Press Enter to close...; read' &");
+}
+
+static void on_apply_hidpi(GtkWidget *btn, gpointer data) {
+    (void)data;
+    run_cmd_logged("wlr-randr --output eDP-1 --scale 1.5 &");
+    send_notification("Display Settings", "Applied 1.5x HiDPI Scaling", "video-display");
+    gtk_button_set_label(GTK_BUTTON(btn), "Applied");
+}
+
+static GtkWidget *build_monitors_page(void) {
+    GtkWidget *page = make_page_box();
+    GtkWidget *vbox = get_page_content(page);
+
+    GtkWidget *title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(title),
+        "<span size='x-large' weight='bold'>Monitors & Scaling</span>");
+    gtk_label_set_xalign(GTK_LABEL(title), 0.0);
+    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
+
+    GtkWidget *desc = gtk_label_new(
+        "Configure display scaling and monitor layout.");
+    gtk_label_set_line_wrap(GTK_LABEL(desc), TRUE);
+    gtk_label_set_xalign(GTK_LABEL(desc), 0.0);
+    gtk_box_pack_start(GTK_BOX(vbox), desc, FALSE, FALSE, 4);
+
+    gtk_box_pack_start(GTK_BOX(vbox), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 8);
+
+    /* Toggle for HiDPI */
+    GtkWidget *row1 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    GtkWidget *lbl1 = gtk_label_new("HiDPI Scaling (1.5x)");
+    gtk_label_set_xalign(GTK_LABEL(lbl1), 0.0);
+    gtk_box_pack_start(GTK_BOX(row1), lbl1, TRUE, TRUE, 0);
+    
+    GtkWidget *btn1 = gtk_button_new_with_label("Apply 1.5x Scale");
+    g_signal_connect(btn1, "clicked", G_CALLBACK(on_apply_hidpi), NULL);
+    gtk_box_pack_start(GTK_BOX(row1), btn1, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), row1, FALSE, FALSE, 8);
+
+    /* Advanced Config */
+    GtkWidget *row2 = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    GtkWidget *lbl2 = gtk_label_new("List Displays (wlr-randr)");
+    gtk_label_set_xalign(GTK_LABEL(lbl2), 0.0);
+    gtk_box_pack_start(GTK_BOX(row2), lbl2, TRUE, TRUE, 0);
+    
+    GtkWidget *btn2 = gtk_button_new_with_label("Check Displays");
+    g_signal_connect(btn2, "clicked", G_CALLBACK(on_open_wlr_randr), NULL);
+    gtk_box_pack_start(GTK_BOX(row2), btn2, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), row2, FALSE, FALSE, 8);
+
+    return page;
+}
+
+/* ---- Page X: Mount Partitions ---- */
+static void on_mount_partition(GtkWidget *btn, gpointer data) {
+    const char *part = (const char *)data;
+    
+    char label[128] = {0};
+    char uuid[128] = {0};
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "lsblk -P -o LABEL,UUID %s", part);
+    FILE *f = popen(cmd, "r");
+    if (f) {
+        char line[512];
+        if (fgets(line, sizeof(line), f)) {
+            char *l = strstr(line, "LABEL=\"");
+            if (l) {
+                l += 7;
+                char *end = strchr(l, '"');
+                if (end && end - l < sizeof(label) - 1) strncpy(label, l, end - l);
+            }
+            char *u = strstr(line, "UUID=\"");
+            if (u) {
+                u += 6;
+                char *end = strchr(u, '"');
+                if (end && end - u < sizeof(uuid) - 1) strncpy(uuid, u, end - u);
+            }
+        }
+        pclose(f);
+    }
+    
+    const char *disk_name = (label[0] != '\0') ? label : uuid;
+    if (disk_name[0] == '\0') disk_name = "unknown";
+    
+    char mount_base[256];
+    const char *user = getenv("USER");
+    if (!user) user = "naranyala";
+    snprintf(mount_base, sizeof(mount_base), "/media/%s", user);
+    
+    char mount_point[512];
+    snprintf(mount_point, sizeof(mount_point), "%s/%s", mount_base, disk_name);
+    
+    snprintf(cmd, sizeof(cmd), "mkdir -p '%s' && mount '%s' '%s'", mount_point, part, mount_point);
+    int rc = run_cmd_logged(cmd);
+    if (rc != 0) {
+        /* Fallback with pkexec if unprivileged mount fails */
+        snprintf(cmd, sizeof(cmd), "mkdir -p '%s' && pkexec mount '%s' '%s'", mount_point, part, mount_point);
+        rc = run_cmd_logged(cmd);
+    }
+
+    if (rc == 0) {
+        send_notification("Partition Mounted", disk_name, "drive-harddisk");
+        gtk_button_set_label(GTK_BUTTON(btn), "Mounted");
+        gtk_widget_set_sensitive(btn, FALSE);
+    } else {
+        send_notification("Mount Failed", "Could not mount partition", "dialog-error");
+        gtk_button_set_label(GTK_BUTTON(btn), "Failed");
+    }
+}
+
+static GtkWidget *build_mount_page(void) {
+    GtkWidget *page = make_page_box();
+    GtkWidget *vbox = get_page_content(page);
+
+    GtkWidget *title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(title),
+        "<span size='x-large' weight='bold'>Mount Partitions</span>");
+    gtk_label_set_xalign(GTK_LABEL(title), 0.0);
+    gtk_box_pack_start(GTK_BOX(vbox), title, FALSE, FALSE, 0);
+
+    GtkWidget *desc = gtk_label_new(
+        "Scan and mount available partitions to your media directory.");
+    gtk_label_set_line_wrap(GTK_LABEL(desc), TRUE);
+    gtk_label_set_xalign(GTK_LABEL(desc), 0.0);
+    gtk_box_pack_start(GTK_BOX(vbox), desc, FALSE, FALSE, 4);
+
+    gtk_box_pack_start(GTK_BOX(vbox),
+        gtk_separator_new(GTK_ORIENTATION_HORIZONTAL), FALSE, FALSE, 8);
+
+    FILE *f = popen("lsblk -P -p -o NAME,TYPE,FSTYPE,SIZE,LABEL,UUID | grep 'TYPE=\"part\"'", "r");
+    if (f) {
+        char line[1024];
+        while (fgets(line, sizeof(line), f)) {
+            char name[128] = {0}, fstype[64] = {0}, size[64] = {0}, label[128] = {0};
+            
+            char *n = strstr(line, "NAME=\"");
+            if (n) { n += 6; char *e = strchr(n, '"'); if (e && e - n < sizeof(name) - 1) strncpy(name, n, e - n); }
+            
+            char *t = strstr(line, "FSTYPE=\"");
+            if (t) { t += 8; char *e = strchr(t, '"'); if (e && e - t < sizeof(fstype) - 1) strncpy(fstype, t, e - t); }
+            
+            char *s = strstr(line, "SIZE=\"");
+            if (s) { s += 6; char *e = strchr(s, '"'); if (e && e - s < sizeof(size) - 1) strncpy(size, s, e - s); }
+            
+            char *l = strstr(line, "LABEL=\"");
+            if (l) { l += 7; char *e = strchr(l, '"'); if (e && e - l < sizeof(label) - 1) strncpy(label, l, e - l); }
+
+            GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+            gtk_widget_set_margin_bottom(row, 8);
+
+            GtkWidget *icon = gtk_image_new_from_icon_name("drive-harddisk", GTK_ICON_SIZE_LARGE_TOOLBAR);
+            gtk_widget_set_size_request(icon, 32, -1);
+            gtk_box_pack_start(GTK_BOX(row), icon, FALSE, FALSE, 0);
+
+            GtkWidget *info = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+            GtkWidget *_lbl = gtk_label_new(NULL);
+            char *markup = g_strdup_printf("<b>%s</b>", name);
+            gtk_label_set_markup(GTK_LABEL(_lbl), markup);
+            g_free(markup);
+            gtk_label_set_xalign(GTK_LABEL(_lbl), 0.0);
+            gtk_box_pack_start(GTK_BOX(info), _lbl, FALSE, FALSE, 0);
+
+            char desc_text[256];
+            snprintf(desc_text, sizeof(desc_text), "Label: %s — %s — %s", 
+                     label[0] ? label : "NoLabel", fstype[0] ? fstype : "Unknown", size);
+            GtkWidget *_d = gtk_label_new(desc_text);
+            gtk_label_set_xalign(GTK_LABEL(_d), 0.0);
+            gtk_style_context_add_class(gtk_widget_get_style_context(_d), "dim-label");
+            gtk_box_pack_start(GTK_BOX(info), _d, FALSE, FALSE, 0);
+
+            GtkWidget *_btn = gtk_button_new_with_label("Mount");
+            gtk_widget_set_valign(_btn, GTK_ALIGN_CENTER);
+            g_signal_connect_data(_btn, "clicked", G_CALLBACK(on_mount_partition), g_strdup(name), (GClosureNotify)free_ptr, 0);
+
+            gtk_box_pack_start(GTK_BOX(row), info, TRUE, TRUE, 0);
+            gtk_box_pack_start(GTK_BOX(row), _btn, FALSE, FALSE, 0);
+            gtk_box_pack_start(GTK_BOX(vbox), row, FALSE, FALSE, 0);
+        }
+        pclose(f);
+    }
 
     return page;
 }
@@ -323,6 +639,18 @@ static GtkWidget *build_shell_page(void) {
 }
 
 /* ---- Page 3: Theme ---- */
+static void on_open_theme_center(GtkWidget *btn, gpointer data) {
+    (void)data;
+    send_notification("Theme Center", "Opening Advanced Theme Center...", "preferences-desktop-theme");
+    run_cmd_logged("ocws-theme-center &");
+}
+
+static void on_open_style(GtkWidget *btn, gpointer data) {
+    (void)data;
+    send_notification("Style Editor", "Opening Style Editor...", "preferences-desktop-appearance");
+    run_cmd_logged("ocws-style &");
+}
+
 static GtkWidget *build_theme_page(void) {
     GtkWidget *page = make_page_box();
     GtkWidget *vbox = get_page_content(page);
@@ -415,6 +743,22 @@ static GtkWidget *build_theme_page(void) {
     }
     free(extra);
 
+    GtkWidget *sep2 = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+    gtk_box_pack_start(GTK_BOX(vbox), sep2, FALSE, FALSE, 12);
+
+    GtkWidget *btn_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_widget_set_halign(btn_box, GTK_ALIGN_CENTER);
+    
+    GtkWidget *btn_theme_center = gtk_button_new_with_label("Open Theme Center");
+    g_signal_connect(btn_theme_center, "clicked", G_CALLBACK(on_open_theme_center), NULL);
+    gtk_box_pack_start(GTK_BOX(btn_box), btn_theme_center, FALSE, FALSE, 0);
+
+    GtkWidget *btn_style = gtk_button_new_with_label("Edit Stylesheets (ocws-style)");
+    g_signal_connect(btn_style, "clicked", G_CALLBACK(on_open_style), NULL);
+    gtk_box_pack_start(GTK_BOX(btn_box), btn_style, FALSE, FALSE, 0);
+
+    gtk_box_pack_start(GTK_BOX(vbox), btn_box, FALSE, FALSE, 8);
+
     return page;
 }
 
@@ -473,6 +817,12 @@ static GtkWidget *build_options_page(void) {
         "Full control center — appearance, bar, widgets, keybinds & more",
         "Open",
         on_open_settings);
+
+    OPTION_ROW(vbox,
+        "Test Notifications",
+        "Send a test notification to verify your daemon is running",
+        "Test",
+        on_test_notification);
 
     #undef OPTION_ROW
 
@@ -541,7 +891,7 @@ static void on_launch_tool(GtkWidget *w, gpointer data) {
     const char *cmd = (const char *)data;
     char full_cmd[256];
     snprintf(full_cmd, sizeof(full_cmd), "%s &", cmd);
-    system(full_cmd);
+    run_cmd_logged(full_cmd);
 }
 
 static GtkWidget *build_tools_page(void) {
@@ -696,7 +1046,7 @@ static void on_open_url(GtkWidget *w, gpointer data) {
     const char *url = (const char *)data;
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "xdg-open '%s' &", url);
-    system(cmd);
+    run_cmd_logged(cmd);
 }
 
 static GtkWidget *build_thanks_page(void) {
@@ -865,6 +1215,9 @@ static void activate(GtkApplication *app, gpointer user_data) {
     gtk_box_pack_start(GTK_BOX(outer), g_stack, TRUE, TRUE, 0);
 
     gtk_stack_add_named(GTK_STACK(g_stack), build_intro_page(),   "intro");
+    gtk_stack_add_named(GTK_STACK(g_stack), build_health_page(),  "health");
+    gtk_stack_add_named(GTK_STACK(g_stack), build_monitors_page(),"monitors");
+    gtk_stack_add_named(GTK_STACK(g_stack), build_mount_page(),   "mount");
     gtk_stack_add_named(GTK_STACK(g_stack), build_shell_page(),   "shell");
     gtk_stack_add_named(GTK_STACK(g_stack), build_theme_page(),   "theme");
     gtk_stack_add_named(GTK_STACK(g_stack), build_options_page(), "options");

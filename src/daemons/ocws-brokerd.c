@@ -23,6 +23,7 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include <time.h>
 #include <fcntl.h>
@@ -222,6 +223,26 @@ static void unload_plugins(void) {
 
 static int opt_verbose = 0;
 static volatile sig_atomic_t running = 1;
+static char g_cover_path[512] = {0};
+
+static const char *get_cover_path(void) {
+    if (g_cover_path[0]) return g_cover_path;
+    const char *rt = getenv("XDG_RUNTIME_DIR");
+    if (rt && *rt)
+        snprintf(g_cover_path, sizeof(g_cover_path), "%s/ocws-cover.jpg", rt);
+    else {
+        const char *h = getenv("HOME");
+        if (h && *h) {
+            snprintf(g_cover_path, sizeof(g_cover_path), "%s/.cache/ocws/ocws-cover.jpg", h);
+            /* Ensure directory exists */
+            char dir[512];
+            snprintf(dir, sizeof(dir), "%s/.cache/ocws", h);
+            mkdir(dir, 0700);
+        } else
+            return "/dev/null";
+    }
+    return g_cover_path;
+}
 
 /* ============================================================
  * Signal Handling
@@ -502,22 +523,24 @@ static void check_media(void) {
 
         if (strncmp(line, "file://", 7) == 0) {
             const char *path = line + 7;
+            const char *cover = get_cover_path();
             pid_t cpid = fork();
-            if (cpid == 0) { execlp("cp", "cp", path, "/tmp/ocws-cover.jpg", NULL); _exit(1); }
+            if (cpid == 0) { execlp("cp", "cp", path, cover, NULL); _exit(1); }
             else if (cpid > 0) waitpid(cpid, NULL, 0);
             log_msg("Media art: %s", path);
         } else if (strncmp(line, "http", 4) == 0) {
+            const char *cover = get_cover_path();
             pid_t cpid = fork();
             if (cpid == 0) {
                 execlp("curl", "curl", "-sSL", "--max-time", "10",
                        "--connect-timeout", "5", line,
-                       "-o", "/tmp/ocws-cover.jpg", NULL);
+                       "-o", cover, NULL);
                 _exit(1);
             }
             else if (cpid > 0) waitpid(cpid, NULL, 0);
             log_msg("Media art downloaded");
         } else {
-            unlink("/tmp/ocws-cover.jpg");
+            unlink(get_cover_path());
         }
 
         /* Also emit media metadata */
@@ -612,6 +635,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    umask(0077);
     setup_signals();
 
     ocws_bus_init();

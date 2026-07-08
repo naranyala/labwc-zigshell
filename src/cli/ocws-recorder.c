@@ -22,8 +22,13 @@ static const char *pid_path(void) {
     const char *rt = getenv("XDG_RUNTIME_DIR");
     if (rt && *rt)
         snprintf(buf, sizeof(buf), "%s/ocws-recorder.pid", rt);
-    else
-        snprintf(buf, sizeof(buf), "/tmp/ocws-recorder.pid");
+    else {
+        const char *home = getenv("HOME");
+        if (home && *home)
+            snprintf(buf, sizeof(buf), "%s/.config/ocws/ocws-recorder.pid", home);
+        else
+            return NULL;
+    }
     return buf;
 }
 
@@ -128,37 +133,48 @@ static void start_recording(const char *audio, const char *codec, const char *cr
         tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
         tm->tm_hour, tm->tm_min, tm->tm_sec);
 
-    char cmd[2048];
-    snprintf(cmd, sizeof(cmd), "wf-recorder -f '%s' -c %s --crf %s",
-        filename, codec, crf);
+    /* Build argument array — no shell involved, no injection possible */
+    char *args[32];
+    int argc = 0;
+    args[argc++] = "wf-recorder";
+    args[argc++] = "-f";
+    args[argc++] = filename;
+    args[argc++] = "-c";
+    args[argc++] = (char *)codec;
+    args[argc++] = "--crf";
+    args[argc++] = (char *)crf;
 
     if (strcmp(audio, "none") != 0) {
-        if (strcmp(audio, "auto") == 0) {
-            strcat(cmd, " --audio");
-        } else {
-            char audio_opt[256];
-            snprintf(audio_opt, sizeof(audio_opt), " --audio -A '%s'", audio);
-            strcat(cmd, audio_opt);
+        args[argc++] = "--audio";
+        if (strcmp(audio, "auto") != 0) {
+            args[argc++] = "-A";
+            args[argc++] = (char *)audio;
         }
     }
 
-    if (fullscreen) {
-        /* Record full screen — no geometry flag needed */
-    } else {
-        /* Region selection */
-        if (check_cmd("slurp")) {
-            strcat(cmd, " -g \"$(slurp)\"");
+    if (!fullscreen && check_cmd("slurp")) {
+        args[argc++] = "-g";
+        /* slurp must run in parent to capture geometry before exec */
+        char geometry[128] = {0};
+        FILE *gp = popen("slurp", "r");
+        if (gp) {
+            if (fgets(geometry, sizeof(geometry), gp))
+                geometry[strcspn(geometry, "\n")] = '\0';
+            pclose(gp);
         }
+        if (geometry[0] == '\0') return;
+        args[argc++] = geometry;
     }
+
+    args[argc] = NULL;
 
     fprintf(stderr, "ocws-recorder: starting recording...\n");
     fprintf(stderr, "  file: %s\n", filename);
 
     pid_t pid = fork();
     if (pid == 0) {
-        /* Child: run wf-recorder */
-        execl("/bin/sh", "sh", "-c", cmd, (char *)NULL);
-        exit(1);
+        execvp("wf-recorder", args);
+        _exit(1);
     } else if (pid > 0) {
         write_pid(pid);
         notify("Recording Started", filename);
@@ -285,6 +301,7 @@ static void usage(const char *prog) {
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
+    umask(0077);
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
 

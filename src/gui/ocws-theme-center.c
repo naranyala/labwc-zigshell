@@ -19,6 +19,20 @@
 #include <ctype.h>
 #include <errno.h>
 
+/* Shell-safe string: rejects shell metacharacters */
+static int is_shell_safe(const char *s) {
+    if (!s || !*s) return 0;
+    for (const char *p = s; *p; p++) {
+        char c = *p;
+        if (c == ';' || c == '|' || c == '&' || c == '$' ||
+            c == '(' || c == ')' || c == '{' || c == '}' ||
+            c == '`' || c == '"' || c == '\'' || c == '\\' ||
+            c == '\n' || c == '\r' || c == '<' || c == '>')
+            return 0;
+    }
+    return 1;
+}
+
 #define VERSION "1.0.0"
 #define OCWS_DIR ".config/ocws"
 #define MAX_THEMES 64
@@ -287,6 +301,10 @@ static char* run_cmd_output(const char *cmd) {
 }
 
 static void run_theme_engine(const char *action, const char *theme_path) {
+    if (theme_path && !is_shell_safe(theme_path)) {
+        g_warning("rejected unsafe theme path");
+        return;
+    }
     char cmd[2048];
     if (theme_path)
         snprintf(cmd, sizeof(cmd), "theme-engine.sh %s '%s'", action, theme_path);
@@ -778,6 +796,10 @@ static void on_apply_clicked(GtkButton *button, gpointer data) {
     (void)button; (void)data;
     if (app.selected < 0 || app.selected >= app.count) {
         show_toast("Please select a theme first.");
+        return;
+    }
+    if (!is_shell_safe(app.themes[app.selected].filepath)) {
+        show_toast("Unsafe theme path rejected.");
         return;
     }
     show_toast("Applying theme...");

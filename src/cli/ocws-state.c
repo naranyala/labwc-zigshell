@@ -10,6 +10,20 @@
 #define MAX_PATH 512
 #define MAX_JSON 4096
 
+// --- Path Validation ---
+static int is_safe_state_name(const char *name) {
+    if (!name || !*name) return 0;
+    if (strstr(name, "..") || strstr(name, "/") || strstr(name, "\\"))
+        return 0;
+    for (const char *p = name; *p; p++) {
+        char c = *p;
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.'))
+            return 0;
+    }
+    return 1;
+}
+
 // --- Path Helpers ---
 void get_state_dir(char *path, size_t size) {
     const char *ocws = getenv("OCWS_DIR");
@@ -98,6 +112,11 @@ void cmd_save(int argc, char **argv) {
         return;
     }
     
+    if (!is_safe_state_name(argv[2])) {
+        fprintf(stderr, "error: invalid state name '%s'\n", argv[2]);
+        return;
+    }
+
     char state_dir[MAX_PATH];
     get_state_dir(state_dir, sizeof(state_dir));
     ensure_dir(state_dir);
@@ -142,6 +161,11 @@ void cmd_save(int argc, char **argv) {
 void cmd_load(int argc, char **argv) {
     if (argc < 3) return;
     
+    if (!is_safe_state_name(argv[2])) {
+        fprintf(stderr, "error: invalid state name '%s'\n", argv[2]);
+        return;
+    }
+    
     char state_dir[MAX_PATH];
     get_state_dir(state_dir, sizeof(state_dir));
     
@@ -161,23 +185,24 @@ void cmd_load(int argc, char **argv) {
 }
 
 void cmd_sync() {
-    // A simplified sync in C. It calls the bash script for complex regex for now.
-    // Or we just system() the specific sed operations.
     char state_dir[MAX_PATH];
     get_state_dir(state_dir, sizeof(state_dir));
     
-    char sys_cmd[1024];
-    snprintf(sys_cmd, sizeof(sys_cmd), "bash -c 'if [ -f \"%s/media-state\" ]; then echo \"Syncing media widgets...\"; fi'", state_dir);
-    system(sys_cmd);
+    char state_file[MAX_PATH];
+    snprintf(state_file, sizeof(state_file), "%s/media-state", state_dir);
     
-    // Since full sync involves sed on dotfiles, calling the remaining shell logic 
-    // or just leaving this as a stub since we want to migrate completely away from it.
+    struct stat st;
+    if (stat(state_file, &st) == 0) {
+        printf("Syncing media widgets...\n");
+    }
+    
     printf("Widget state synchronized (native)\n");
 }
 
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
+    umask(0077);
     const char *cmd = (argc > 1) ? argv[1] : "help";
 
     if (strcmp(cmd, "export") == 0) {

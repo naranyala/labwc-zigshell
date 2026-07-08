@@ -5,6 +5,7 @@
 #include <dlfcn.h>
 #include <dirent.h>
 #include <glib.h>
+#include <sys/stat.h>
 #include "../libocws/plugin_api.h"
 
 /* 
@@ -18,6 +19,7 @@ static void* plugin_handles[MAX_PLUGINS];
 static int plugin_count = 0;
 
 static GMainLoop *main_loop = NULL;
+static volatile sig_atomic_t got_signal = 0;
 
 static gboolean plugin_tick_cb(gpointer user_data) {
     OcwsPlugin* plugin = (OcwsPlugin*)user_data;
@@ -100,9 +102,16 @@ static void discover_plugins(void) {
 
 static void handle_signal(int sig) {
     (void)sig;
-    if (main_loop && g_main_loop_is_running(main_loop)) {
+    got_signal = 1;
+}
+
+static gboolean signal_check_cb(gpointer user_data) {
+    (void)user_data;
+    if (got_signal && main_loop) {
         g_main_loop_quit(main_loop);
+        return G_SOURCE_REMOVE;
     }
+    return G_SOURCE_CONTINUE;
 }
 
 int main(int argc, char* argv[]) {
@@ -110,6 +119,7 @@ int main(int argc, char* argv[]) {
 
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
+    umask(0077);
 
     printf("=== OCWS Unified Applet Daemon (Modular) ===\n");
     
@@ -120,6 +130,7 @@ int main(int argc, char* argv[]) {
     }
 
     main_loop = g_main_loop_new(NULL, FALSE);
+    g_timeout_add(200, signal_check_cb, NULL);
     printf("[Appletd] Entering GLib main loop.\n");
     g_main_loop_run(main_loop);
 

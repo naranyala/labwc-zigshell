@@ -143,11 +143,6 @@ if command -v flameshot >/dev/null 2>&1; then
   flameshot &
 fi
 
-# --- Welcome Wizard (first-run setup) ---
-if command -v ocws-welcome >/dev/null 2>&1; then
-  (sleep 2 && ocws-welcome) &
-fi
-
 # --- Autorun Programs ---
 if command -v ocws-autorun.sh >/dev/null 2>&1; then
   ocws-autorun.sh &

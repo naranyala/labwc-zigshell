@@ -4,7 +4,9 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const c_flags = &[_][]const u8{
+    const asan = b.option(bool, "asan", "Enable AddressSanitizer") orelse false;
+
+    const base_c_flags = &[_][]const u8{
         "-std=gnu99",
         "-Wall",
         "-Wextra",
@@ -15,6 +17,20 @@ pub fn build(b: *std.Build) void {
         "-Isrc/daemons",
         "-Iprotocols",
     };
+
+    const c_flags = if (asan) &[_][]const u8{
+        "-std=gnu99",
+        "-Wall",
+        "-Wextra",
+        "-O2",
+        "-fsanitize=address",
+        "-fno-omit-frame-pointer",
+        "-Isrc/core",
+        "-Isrc/gui",
+        "-Isrc/cli",
+        "-Isrc/daemons",
+        "-Iprotocols",
+    } else base_c_flags;
 
     // === Unified Binary (Zig harness) ===
     {
@@ -79,74 +95,6 @@ pub fn build(b: *std.Build) void {
             .flags = c_flags,
         });
 
-        b.installArtifact(exe);
-    }
-
-    // ocws-datetime: GTK3 floating analog clock + datetime widget
-    {
-        const exe = b.addExecutable(.{
-            .name = "ocws-datetime",
-            .root_module = b.createModule(.{
-                .target = target,
-                .optimize = optimize,
-                .link_libc = true,
-            }),
-        });
-
-        exe.root_module.addCSourceFile(.{
-            .file = b.path("src/cli/ocws-datetime.c"),
-            .flags = c_flags,
-        });
-
-        exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-        exe.root_module.linkSystemLibrary("glib-2.0", .{});
-        exe.root_module.linkSystemLibrary("gio-2.0", .{});
-        exe.root_module.linkSystemLibrary("cairo", .{});
-        b.installArtifact(exe);
-    }
-
-    // ocws-snake-game: GTK3 + Cairo snake game
-    {
-        const exe = b.addExecutable(.{
-            .name = "ocws-snake-game",
-            .root_module = b.createModule(.{
-                .target = target,
-                .optimize = optimize,
-                .link_libc = true,
-            }),
-        });
-
-        exe.root_module.addCSourceFile(.{
-            .file = b.path("src/cli/ocws-snake-game.c"),
-            .flags = c_flags,
-        });
-
-        exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-        exe.root_module.linkSystemLibrary("glib-2.0", .{});
-        exe.root_module.linkSystemLibrary("gio-2.0", .{});
-        exe.root_module.linkSystemLibrary("cairo", .{});
-        b.installArtifact(exe);
-    }
-
-    // ocws-todomvc: pure GTK3 todo list (TodoMVC)
-    {
-        const exe = b.addExecutable(.{
-            .name = "ocws-todomvc",
-            .root_module = b.createModule(.{
-                .target = target,
-                .optimize = optimize,
-                .link_libc = true,
-            }),
-        });
-
-        exe.root_module.addCSourceFile(.{
-            .file = b.path("src/cli/ocws-todomvc.c"),
-            .flags = c_flags,
-        });
-
-        exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-        exe.root_module.linkSystemLibrary("glib-2.0", .{});
-        exe.root_module.linkSystemLibrary("gio-2.0", .{});
         b.installArtifact(exe);
     }
 
@@ -320,26 +268,6 @@ pub fn build(b: *std.Build) void {
         osd_notify.root_module.linkSystemLibrary("glib-2.0", .{});
 
         b.installArtifact(osd_notify);
-    }
-
-    // ocws-hypertile: Dynamic Window Tiling Daemon
-    {
-        const hypertile = b.addExecutable(.{
-            .name = "ocws-hypertile",
-            .root_module = b.createModule(.{
-                .target = target,
-                .optimize = optimize,
-                .link_libc = true,
-            }),
-        });
-
-        hypertile.root_module.addCSourceFile(.{
-            .file = b.path("src/daemons/ocws-hypertile.c"),
-            .flags = c_flags,
-        });
-        hypertile.root_module.linkSystemLibrary("wayland-client", .{});
-
-        b.installArtifact(hypertile);
     }
 
     // ocws-brokerd: C-native Event Bus Daemon

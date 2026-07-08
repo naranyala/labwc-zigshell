@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 const char* map_namespace(const char* ns) {
     if (strcmp(ns, "System.Volume") == 0) return "XVolLevel";
@@ -51,6 +52,7 @@ void print_help(const char* prog) {
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
+    umask(0077);
     if (argc < 3) {
         print_help(argv[0]);
         return 1;

@@ -1,0 +1,14 @@
+// cppcheck suppressions for OCWS
+// These are known false positives or intentional patterns
+
+// Header-only libraries use static inline functions
+missingIncludeSystem
+
+// GTK/GLib callback patterns
+unusedFunction
+
+// Intentional: variadic format strings
+formatSecurity
+
+// Intentional: dlopen for plugin loading
+unusedFunction

@@ -10,6 +10,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+static int is_shell_safe(const char *s) {
+    if (!s || !*s) return 0;
+    for (const char *p = s; *p; p++) {
+        char c = *p;
+        if (c == ';' || c == '|' || c == '&' || c == '$' ||
+            c == '(' || c == ')' || c == '{' || c == '}' ||
+            c == '`' || c == '"' || c == '\'' || c == '\\' ||
+            c == '\n' || c == '\r' || c == '<' || c == '>')
+            return 0;
+    }
+    return 1;
+}
+
 // ============================================================
 // Tab: Shell Modes
 // ============================================================
@@ -44,6 +57,7 @@ GtkWidget* build_shell_tab(void) {
 static void on_theme_color_clicked(GtkWidget *widget, gpointer data) {
     (void)widget;
     const char *theme = (const char *)data;
+    if (!theme || !is_shell_safe(theme)) return;
     char cmd[256];
     snprintf(cmd, sizeof(cmd), "theme-engine.sh apply %s &", theme);
     system(cmd);
@@ -54,9 +68,11 @@ static void on_icon_apply_clicked(GtkWidget *widget, gpointer data) {
     GtkWidget *combo = GTK_WIDGET(data);
     char *active = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(combo));
     if (active) {
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "gsettings set org.gnome.desktop.interface icon-theme '%s' &", active);
-        system(cmd);
+        if (is_shell_safe(active)) {
+            char cmd[256];
+            snprintf(cmd, sizeof(cmd), "gsettings set org.gnome.desktop.interface icon-theme '%s' &", active);
+            system(cmd);
+        }
         g_free(active);
     }
 }
@@ -66,9 +82,11 @@ static void on_cursor_apply_clicked(GtkWidget *widget, gpointer data) {
     GtkWidget *combo = GTK_WIDGET(data);
     char *active = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(combo));
     if (active) {
-        char cmd[256];
-        snprintf(cmd, sizeof(cmd), "gsettings set org.gnome.desktop.interface cursor-theme '%s' &", active);
-        system(cmd);
+        if (is_shell_safe(active)) {
+            char cmd[256];
+            snprintf(cmd, sizeof(cmd), "gsettings set org.gnome.desktop.interface cursor-theme '%s' &", active);
+            system(cmd);
+        }
         g_free(active);
     }
 }
@@ -152,7 +170,54 @@ GtkWidget* build_appearance_tab(void) {
     gtk_box_pack_start(GTK_BOX(vbox), card, FALSE, FALSE, 0);
     content = get_collapsible_content(card);
     gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Window Gaps", 10, 0, 40, "px", "ocws-kv set theme window_gaps %d; labwc -r &"), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Corner Radius", 12, 0, 30, "px", "ocws-kv set theme corner_radius %d; labwc -r &"), FALSE, FALSE, 0);
+
+    // Read current corner radius and margins from rc.xml
+    int corner_radius = 8;
+    int margin_top = 0, margin_bottom = 4, margin_left = 4, margin_right = 4;
+    {
+        const char *home = getenv("HOME");
+        if (home && *home) {
+            char rc_path[512];
+            snprintf(rc_path, sizeof(rc_path), "%s/.config/labwc/rc.xml", home);
+            FILE *f = fopen(rc_path, "r");
+            if (f) {
+                char line[256];
+                while (fgets(line, sizeof(line), f)) {
+                    char *p;
+                    if ((p = strstr(line, "<cornerRadius>"))) {
+                        corner_radius = atoi(p + strlen("<cornerRadius>"));
+                    } else if ((p = strstr(line, "<margin "))) {
+                        char *a;
+                        if ((a = strstr(p, "top=\""))) margin_top = atoi(a + 5);
+                        if ((a = strstr(p, "bottom=\""))) margin_bottom = atoi(a + 8);
+                        if ((a = strstr(p, "left=\""))) margin_left = atoi(a + 6);
+                        if ((a = strstr(p, "right=\""))) margin_right = atoi(a + 7);
+                    }
+                }
+                fclose(f);
+            }
+        }
+    }
+
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Corner Radius", corner_radius, 0, 30, "px",
+        "sed -i 's|<cornerRadius>[^<]*</cornerRadius>|<cornerRadius>%d</cornerRadius>|' ~/.config/labwc/rc.xml; labwc -r &"), FALSE, FALSE, 0);
+
+    // Window Margins
+    GtkWidget *margin_label = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(margin_label), "<b>Window Margins</b>");
+    gtk_label_set_xalign(GTK_LABEL(margin_label), 0.0);
+    gtk_widget_set_margin_top(margin_label, 8);
+    gtk_box_pack_start(GTK_BOX(content), margin_label, FALSE, FALSE, 0);
+
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Margin Top", margin_top, 0, 80, "px",
+        "sed -i 's|<margin top=\"[^\"]*\"|<margin top=\"%d\"|' ~/.config/labwc/rc.xml; labwc -r &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Margin Bottom", margin_bottom, 0, 80, "px",
+        "sed -i 's|bottom=\"[^\"]*\"|bottom=\"%d\"|' ~/.config/labwc/rc.xml; labwc -r &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Margin Left", margin_left, 0, 80, "px",
+        "sed -i 's|left=\"[^\"]*\"|left=\"%d\"|' ~/.config/labwc/rc.xml; labwc -r &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Margin Right", margin_right, 0, 80, "px",
+        "sed -i 's|right=\"[^\"]*\"|right=\"%d\"|' ~/.config/labwc/rc.xml; labwc -r &"), FALSE, FALSE, 0);
+
     gtk_box_pack_start(GTK_BOX(content), create_live_toggle_row("Window Blur", "Enable background blur for transparent windows", TRUE, "ocws-kv set theme window_blur 1; labwc -r &", "ocws-kv set theme window_blur 0; labwc -r &"), FALSE, FALSE, 0);
 
     // Theme Center button (always visible)
@@ -195,32 +260,32 @@ GtkWidget* build_bar_config_tab(void) {
     card = create_collapsible_card("Size & Spacing", "📏", TRUE);
     gtk_box_pack_start(GTK_BOX(vbox), card, FALSE, FALSE, 0);
     GtkWidget *content = get_collapsible_content(card);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Bar Thickness", 32, 24, 64, "px"), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Edge Spacing", 4, 0, 32, "px"), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Widget Padding", 8, 0, 32, "px"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Bar Thickness", 32, 24, 64, "px", "ocws-kv set bar.thickness %d &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Edge Spacing", 4, 0, 32, "px", "ocws-kv set bar.margin %d &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Widget Padding", 8, 0, 32, "px", "ocws-kv set bar.padding %d &"), FALSE, FALSE, 0);
 
     // Transparency (collapsible, starts collapsed)
     card = create_collapsible_card("Transparency", "👁️", FALSE);
     gtk_box_pack_start(GTK_BOX(vbox), card, FALSE, FALSE, 0);
     content = get_collapsible_content(card);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Bar Opacity", 100, 0, 100, "%"), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Widget Opacity", 100, 0, 100, "%"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Bar Opacity", 100, 0, 100, "%", "ocws-kv set bar.opacity %d &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Widget Opacity", 100, 0, 100, "%", "ocws-kv set bar.widget_opacity %d &"), FALSE, FALSE, 0);
 
     // Corners (collapsible, starts collapsed)
     card = create_collapsible_card("Corners & Background", "🔲", FALSE);
     gtk_box_pack_start(GTK_BOX(vbox), card, FALSE, FALSE, 0);
     content = get_collapsible_content(card);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Corner Radius", 12, 0, 24, "px"), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_toggle_row("Square Corners", "Remove rounded corners", FALSE), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_toggle_row("No Background", "Transparent bar background", FALSE), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Corner Radius", 12, 0, 24, "px", "ocws-kv set bar.radius %d &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_toggle_row("Square Corners", "Remove rounded corners", FALSE, "ocws-kv set bar.square 1 &", "ocws-kv set bar.square 0 &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_toggle_row("No Background", "Transparent bar background", FALSE, "ocws-kv set bar.nobg 1 &", "ocws-kv set bar.nobg 0 &"), FALSE, FALSE, 0);
 
     // Visibility (collapsible, starts collapsed)
     card = create_collapsible_card("Visibility", "👁️", FALSE);
     gtk_box_pack_start(GTK_BOX(vbox), card, FALSE, FALSE, 0);
     content = get_collapsible_content(card);
-    gtk_box_pack_start(GTK_BOX(content), create_toggle_row("Auto-hide", "Hide when not hovering", FALSE), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Hide Delay", 250, 0, 2000, "ms"), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_toggle_row("Scroll Switching", "Switch workspace with scroll", TRUE), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_toggle_row("Auto-hide", "Hide when not hovering", FALSE, "ocws-kv set bar.autohide 1 &", "ocws-kv set bar.autohide 0 &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Hide Delay", 250, 0, 2000, "ms", "ocws-kv set bar.hide_delay %d &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_toggle_row("Scroll Switching", "Switch workspace with scroll", TRUE, "ocws-kv set bar.scroll_switch 1 &", "ocws-kv set bar.scroll_switch 0 &"), FALSE, FALSE, 0);
 
     return scroll;
 }
@@ -254,7 +319,12 @@ GtkWidget* build_widgets_tab(void) {
         "Clipboard", "Keybinds", "Keyboard Layout", "Show Desktop", "Notification Center"
     };
     for (int i = 0; i < 20; i++) {
-        gtk_box_pack_start(GTK_BOX(content), create_toggle_row(widgets[i], NULL, TRUE), FALSE, FALSE, 0);
+        char key_name[64];
+        snprintf(key_name, sizeof(key_name), "widget.%s", widgets[i]);
+        char cmd_on[128], cmd_off[128];
+        snprintf(cmd_on, sizeof(cmd_on), "ocws-kv set '%s' 1 &", key_name);
+        snprintf(cmd_off, sizeof(cmd_off), "ocws-kv set '%s' 0 &", key_name);
+        gtk_box_pack_start(GTK_BOX(content), create_live_toggle_row(widgets[i], NULL, TRUE, cmd_on, cmd_off), FALSE, FALSE, 0);
     }
 
     return scroll;
@@ -274,13 +344,13 @@ GtkWidget* build_workspaces_tab(void) {
 
     GtkWidget *card = create_card("Workspace Settings", "🖥️");
     gtk_box_pack_start(GTK_BOX(vbox), card, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(card), create_slider_row("Count", 5, 1, 12, ""), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(card), create_toggle_row("Show Names", "Display workspace names instead of numbers", FALSE), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(card), create_toggle_row("App Icons", "Show running app icons in workspace", TRUE), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(card), create_toggle_row("Scroll Switch", "Switch workspace with scroll wheel", TRUE), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(card), create_toggle_row("Drag Reorder", "Drag to reorder workspaces", TRUE), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(card), create_toggle_row("Follow Focus", "Bar shows focused workspace", FALSE), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(card), create_toggle_row("Occupied Only", "Hide empty workspaces", FALSE), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(card), create_live_slider_row("Count", 5, 1, 12, "", "ocws-kv set workspace.count %d &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(card), create_live_toggle_row("Show Names", "Display workspace names instead of numbers", FALSE, "ocws-kv set workspace.show_names 1 &", "ocws-kv set workspace.show_names 0 &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(card), create_live_toggle_row("App Icons", "Show running app icons in workspace", TRUE, "ocws-kv set workspace.app_icons 1 &", "ocws-kv set workspace.app_icons 0 &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(card), create_live_toggle_row("Scroll Switch", "Switch workspace with scroll wheel", TRUE, "ocws-kv set workspace.scroll 1 &", "ocws-kv set workspace.scroll 0 &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(card), create_live_toggle_row("Drag Reorder", "Drag to reorder workspaces", TRUE, "ocws-kv set workspace.drag 1 &", "ocws-kv set workspace.drag 0 &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(card), create_live_toggle_row("Follow Focus", "Bar shows focused workspace", FALSE, "ocws-kv set workspace.follow 1 &", "ocws-kv set workspace.follow 0 &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(card), create_live_toggle_row("Occupied Only", "Hide empty workspaces", FALSE, "ocws-kv set workspace.occupied_only 1 &", "ocws-kv set workspace.occupied_only 0 &"), FALSE, FALSE, 0);
 
     return scroll;
 }
@@ -307,16 +377,16 @@ GtkWidget* build_notifications_tab(void) {
     card = create_collapsible_card("Behavior", "⚙️", TRUE);
     gtk_box_pack_start(GTK_BOX(vbox), card, FALSE, FALSE, 0);
     GtkWidget *content = get_collapsible_content(card);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Timeout", 5, 1, 30, "s"), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Max Visible", 5, 1, 10, ""), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Timeout", 5, 1, 30, "s", "ocws-kv set notif.timeout %d &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Max Visible", 5, 1, 10, "", "ocws-kv set notif.max %d &"), FALSE, FALSE, 0);
 
     // Appearance (collapsible, starts collapsed)
     card = create_collapsible_card("Appearance", "🎨", FALSE);
     gtk_box_pack_start(GTK_BOX(vbox), card, FALSE, FALSE, 0);
     content = get_collapsible_content(card);
-    gtk_box_pack_start(GTK_BOX(content), create_slider_row("Border Radius", 8, 0, 24, "px"), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_toggle_row("Actions", "Show action buttons in notifications", TRUE), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(content), create_toggle_row("Persistence", "Save notification history", TRUE), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_slider_row("Border Radius", 8, 0, 24, "px", "ocws-kv set notif.radius %d &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_toggle_row("Actions", "Show action buttons in notifications", TRUE, "ocws-kv set notif.actions 1 &", "ocws-kv set notif.actions 0 &"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(content), create_live_toggle_row("Persistence", "Save notification history", TRUE, "ocws-kv set notif.persist 1 &", "ocws-kv set notif.persist 0 &"), FALSE, FALSE, 0);
 
     return scroll;
 }

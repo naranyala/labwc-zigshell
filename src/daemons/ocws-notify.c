@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/stat.h>
 #include <glib.h>
 #include <gio/gio.h>
 
@@ -52,7 +53,7 @@ static void notif_store(Notification *n) {
     for (int i = 0; i < MAX_NOTIFICATIONS; i++) {
         if (notifications[i] == NULL) {
             notifications[i] = n;
-            if ((guint32)i + 1 > notif_count)
+            if (i + 1 > notif_count)
                 notif_count = i + 1;
             return;
         }
@@ -365,6 +366,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    umask(0077);
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
 
