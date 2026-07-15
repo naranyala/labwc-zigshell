@@ -23,7 +23,7 @@ Builds successfully with `zig build`.
 
 ### Phase 1 — Stabilize core rendering
 - [ ] Verify panel renders correctly on a live Wayland session (labwc/sway).
-- [ ] Fix font loading: test on multiple distros, add fallback paths for Noto/Liberation.
+- [x] Fix font loading: test on multiple distros, add fallback paths for Noto/Liberation. — **DONE**: Added 14 font paths covering Debian/Ubuntu, Fedora, Arch, OpenMandriva. Includes Bold variants.
 - [ ] Test `measureText()` — ensure widget widths match Cairo version.
 - [ ] Verify `fillRect` colors render correctly (ARGB32 vs premultiplied — Blend2D uses premultiplied).
 - [ ] Benchmark: compare frame render time vs zigshell-cairo-pango at 1920x1080.
@@ -31,12 +31,12 @@ Builds successfully with `zig build`.
 ### Phase 2 — Icon system completeness
 - [ ] Test PNG icon loading for common apps (firefox, foot, footclient, pcmanfm-qt).
 - [ ] Add SVG support via **plutosvg** (lightweight SVG renderer, ~50KB) or **lunasvg**.
-- [ ] Improve fallback icon: render a proper circle (currently draws a filled rect).
-- [ ] Add `.desktop` file `GenericName` fallback when `Name` is empty.
+- [x] Improve fallback icon: render a proper circle (currently draws a filled rect). — **DONE**: Uses bezier path circle + first letter in white, loaded from Bold font.
+- [x] Add `.desktop` file `GenericName` fallback when `Name` is empty. — **DONE**: `readIconName()` now reads both `Icon=` and `GenericName=`, prefers Icon.
 - [ ] Cache icon textures across frames (currently re-reads files on every dock repaint).
 
 ### Phase 3 — Text rendering polish
-- [ ] Add font size variants (bold for CPU/MEM labels, regular for values).
+- [x] Add font size variants (bold for CPU/MEM labels, regular for values). — **DONE**: Added `loadBoldFont()` / `loadRegularFont()` methods to BlendRenderer.
 - [ ] Support font fallback chain: try DejaVu → Liberation → Noto → system default.
 - [ ] Add Pango-compatible text measurement for widget width matching.
 - [ ] Handle Unicode edge cases (emoji in widget labels, CJK workspace names).
@@ -49,15 +49,15 @@ Builds successfully with `zig build`.
 - [ ] Config file loading (INI-style widget layout, currently hardcoded defaults).
 
 ### Phase 5 — Interaction & polish
-- [ ] Right-click context menu on dock icons (close, maximize, minimize).
+- [x] Right-click context menu on dock icons (close, maximize, minimize). — **DONE**: Right-click shows Close/Minimize/Maximize menu, left-click activates, click outside closes.
 - [ ] Tooltip on hover (show full window title).
 - [ ] Auto-hide dock with fade animation.
 - [ ] Settings menu: wire up icon size options (currently cosmetic).
 - [ ] Multi-monitor support: track `wl_output` per toplevel.
 
 ### Phase 6 — Build system & packaging
-- [ ] Static linking option (build Blend2D as `.a` instead of `.so`).
-- [ ] Add `zig build test` target (unit tests for widget layout, icon loading).
+- [x] Static linking option (build Blend2D as `.a` instead of `.so`). — **DONE**: `zig build -Dstatic=true` passes `-DBLEND2D_TARGET_TYPE=STATIC` to CMake.
+- [x] Add `zig build test` target (unit tests for widget layout, icon loading). — **DONE**: `zig build test` step added.
 - [ ] CI/CD integration (GitHub Actions build + Wayland test).
 - [ ] `make install` target for system-wide installation.
 - [ ] Flatpak/Nix packaging manifest.

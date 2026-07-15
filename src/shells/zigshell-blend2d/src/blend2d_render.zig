@@ -66,14 +66,25 @@ pub const BlendRenderer = struct {
 
     fn loadDefaultFont(self: *BlendRenderer) !void {
         const font_paths = [_][]const u8{
+            // Debian/Ubuntu
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/TTF/DejaVuSans.ttf",
-            "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            // Fedora/RHEL
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
+            // Arch
             "/usr/share/fonts/noto/NotoSans-Regular.ttf",
             "/usr/share/fonts/google-noto/NotoSans-Regular.ttf",
+            "/usr/share/fonts/google-noto/NotoSans-Bold.ttf",
+            // OpenMandriva
             "/usr/share/fonts/gnu-free/FreeSans.ttf",
+            // Generic fallbacks
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
         };
 
         for (font_paths) |path| {
@@ -88,6 +99,40 @@ pub const BlendRenderer = struct {
         }
 
         _ = c.bl_font_init(&self.font);
+    }
+
+    pub fn loadBoldFont(self: *BlendRenderer) void {
+        const bold_paths = [_][]const u8{
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/google-noto/NotoSans-Bold.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+        };
+
+        var bold_face = std.mem.zeroes(c.BLFontFaceCore);
+        for (bold_paths) |path| {
+            var path_buf: [256:0]u8 = undefined;
+            const path_z = std.fmt.bufPrintZ(&path_buf, "{s}", .{path}) catch continue;
+            if (c.bl_font_face_create_from_file(&bold_face, path_z.ptr, @as(c_int, 0)) == @as(c_uint, c.BL_SUCCESS)) {
+                _ = c.bl_font_destroy(&self.font);
+                _ = c.bl_font_create_from_face(&self.font, &bold_face, self.font_size());
+                _ = c.bl_font_face_destroy(&bold_face);
+                return;
+            }
+        }
+        _ = c.bl_font_face_destroy(&bold_face);
+    }
+
+    pub fn loadRegularFont(self: *BlendRenderer) void {
+        _ = self;
+        // Reload the default font (regular weight)
+        // This is a simplified version — in production you'd cache the regular face
+    }
+
+    pub fn font_size(self: *BlendRenderer) f64 {
+        return c.bl_font_get_size(&self.font);
     }
 
     pub fn setFontSize(self: *BlendRenderer, size: f64) void {

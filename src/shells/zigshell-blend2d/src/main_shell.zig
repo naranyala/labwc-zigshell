@@ -68,6 +68,10 @@ var pointer_on_dock = false;
 // ---- settings state ----
 var settings_open = false;
 
+// ---- dock context menu state ----
+var dock_ctx_menu_open = false;
+var dock_ctx_menu_idx: i32 = -1;
+
 // ==== WAYLAND CALLBACKS ====
 
 fn toplevelHandleTitle(data: ?*anyopaque, handle: ?*c.zwlr_foreign_toplevel_handle_v1, title: [*c]const u8) callconv(.c) void {
@@ -208,6 +212,7 @@ fn pointerLeave(data: ?*anyopaque, p: ?*c.wl_pointer, serial: u32, surface: ?*c.
     pointer_on_panel = false;
     pointer_on_dock = false;
     dock_hover_idx = -1;
+    dock_ctx_menu_open = false;
     dirty = true;
 }
 
@@ -234,15 +239,29 @@ fn pointerButton(data: ?*anyopaque, p: ?*c.wl_pointer, serial: u32, time: u32, b
     if (state_w != c.WL_POINTER_BUTTON_STATE_PRESSED) return;
 
     if (pointer_on_dock) {
+        // If context menu is open, handle its clicks
+        if (dock_ctx_menu_open) {
+            handleDockContextMenu(pointer_x, pointer_y, button);
+            dirty = true;
+            return;
+        }
+
         if (dock_hover_idx >= 0 and dock_hover_idx < toplevel_count and seat != null) {
             const info = &toplevels[@intCast(dock_hover_idx)];
             const handle: ?*c.zwlr_foreign_toplevel_handle_v1 = @ptrCast(@alignCast(info.handle));
-            if (info.focused) {
+
+            if (button == 274 or button == 3) { // Right-click or BTN_RIGHT
+                // Show context menu
+                dock_ctx_menu_open = true;
+                dock_ctx_menu_idx = dock_hover_idx;
+                dirty = true;
+            } else if (info.focused) {
                 c.zwlr_foreign_toplevel_handle_v1_set_minimized(handle);
+                dirty = true;
             } else {
                 c.zwlr_foreign_toplevel_handle_v1_activate(handle, seat);
+                dirty = true;
             }
-            dirty = true;
         }
         return;
     }
@@ -316,6 +335,63 @@ fn executeSettingsAction(action: []const u8) void {
         }
     }
     settings_open = false;
+}
+
+fn handleDockContextMenu(x: i32, y: i32, button: u32) void {
+    if (button != 1) { // Any button click outside menu closes it
+        dock_ctx_menu_open = false;
+        return;
+    }
+
+    const menu_items = [_]struct { label: []const u8, action: []const u8 }{
+        .{ .label = "Close Window", .action = "close" },
+        .{ .label = "Minimize", .action = "minimize" },
+        .{ .label = "Maximize", .action = "maximize" },
+    };
+
+    // Menu position near the clicked icon
+    const slot = dock_mod.DOCK_ICON_SIZE + 8;
+    const total_w: i32 = if (toplevel_count > 0) toplevel_count * slot - 8 else 0;
+    var start_x = @divTrunc(dock_surface.width - total_w, 2);
+    if (start_x < 0) start_x = 0;
+
+    const menu_x = start_x + dock_ctx_menu_idx * slot;
+    const menu_y: i32 = 0; // Top of dock surface
+    const item_h: i32 = 24;
+    const menu_w: i32 = 120;
+    const menu_h: i32 = @as(i32, @intCast(menu_items.len)) * item_h + 8;
+
+    // Check if click is within menu bounds
+    if (x < menu_x or x >= menu_x + menu_w or y < menu_y or y >= menu_y + menu_h) {
+        dock_ctx_menu_open = false;
+        return;
+    }
+
+    for (menu_items, 0..) |item, i| {
+        const iy = menu_y + 4 + @as(i32, @intCast(i)) * item_h;
+        if (x >= menu_x and x < menu_x + menu_w and y >= iy and y < iy + item_h) {
+            executeDockContextAction(item.action, dock_ctx_menu_idx);
+            dock_ctx_menu_open = false;
+            return;
+        }
+    }
+
+    // Click outside menu closes it
+    dock_ctx_menu_open = false;
+}
+
+fn executeDockContextAction(action: []const u8, idx: i32) void {
+    if (idx < 0 or idx >= toplevel_count or seat == null) return;
+    const info = &toplevels[@intCast(idx)];
+    const handle: ?*c.zwlr_foreign_toplevel_handle_v1 = @ptrCast(@alignCast(info.handle));
+
+    if (std.mem.eql(u8, action, "close")) {
+        c.zwlr_foreign_toplevel_handle_v1_close(handle);
+    } else if (std.mem.eql(u8, action, "minimize")) {
+        c.zwlr_foreign_toplevel_handle_v1_set_minimized(handle);
+    } else if (std.mem.eql(u8, action, "maximize")) {
+        c.zwlr_foreign_toplevel_handle_v1_set_maximized(handle);
+    }
 }
 
 const pointer_listener = c.wl_pointer_listener{
@@ -570,6 +646,47 @@ fn renderDock() void {
         toplevel_count,
         dock_hover_idx,
     );
+
+    // Draw dock context menu if open
+    if (dock_ctx_menu_open) {
+        drawDockContextMenu(&renderer);
+    }
+}
+
+fn drawDockContextMenu(renderer: *blend2d.BlendRenderer) void {
+    const menu_items = [_]struct { label: []const u8 }{
+        .{ .label = "Close Window" },
+        .{ .label = "Minimize" },
+        .{ .label = "Maximize" },
+    };
+
+    const slot = dock_mod.DOCK_ICON_SIZE + 8;
+    const total_w: i32 = if (toplevel_count > 0) toplevel_count * slot - 8 else 0;
+    var start_x = @divTrunc(dock_surface.width - total_w, 2);
+    if (start_x < 0) start_x = 0;
+
+    const menu_x = start_x + dock_ctx_menu_idx * slot;
+    const menu_y: i32 = 0;
+    const item_h: i32 = 24;
+    const menu_w: i32 = 120;
+    const menu_h: i32 = @as(i32, @intCast(menu_items.len)) * item_h + 8;
+
+    // Menu background
+    renderer.fillRect(@as(f64, @floatFromInt(menu_x)), @as(f64, @floatFromInt(menu_y)), @as(f64, @floatFromInt(menu_w)), @as(f64, @floatFromInt(menu_h)), 0xF21F1F26);
+    renderer.drawBorder(@as(f64, @floatFromInt(menu_x)), @as(f64, @floatFromInt(menu_y)), @as(f64, @floatFromInt(menu_w)), @as(f64, @floatFromInt(menu_h)), 0xFF4D4D59);
+
+    for (menu_items, 0..) |item, i| {
+        const iy = menu_y + 4 + @as(i32, @intCast(i)) * item_h;
+
+        // Hover highlight
+        if (pointer_x >= menu_x and pointer_x < menu_x + menu_w and
+            pointer_y >= iy and pointer_y < iy + item_h)
+        {
+            renderer.fillRect(@as(f64, @floatFromInt(menu_x + 2)), @as(f64, @floatFromInt(iy)), @as(f64, @floatFromInt(menu_w - 4)), @as(f64, @floatFromInt(item_h)), 0xFF40404D);
+        }
+
+        renderer.drawText(item.label, @as(f64, @floatFromInt(menu_x + 10)), @as(f64, @floatFromInt(iy + @divTrunc(item_h, 2) - 6)), 0xFFD9D9E0);
+    }
 }
 
 fn submitSurface(ss: *SurfaceState) void {

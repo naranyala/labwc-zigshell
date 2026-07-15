@@ -87,6 +87,7 @@ fn findDesktopFile(app_id: [*:0]const u8) ?[512:0]u8 {
 
 fn readIconName(desktop_path: [*:0]const u8) ?[128:0]u8 {
     var icon_name: [128:0]u8 = std.mem.zeroes([128:0]u8);
+    var generic_name: [128:0]u8 = std.mem.zeroes([128:0]u8);
     const f = c.fopen(desktop_path, "r") orelse return null;
     defer _ = c.fclose(f);
 
@@ -110,10 +111,20 @@ fn readIconName(desktop_path: [*:0]const u8) ?[128:0]u8 {
             const len = @min(val.len, icon_name.len - 1);
             @memcpy(icon_name[0..len], val[0..len]);
             icon_name[len] = 0;
-            break;
+        } else if (std.mem.startsWith(u8, real_line, "GenericName=")) {
+            var val = real_line[12..];
+            while (val.len > 0 and (val[val.len - 1] == '\n' or val[val.len - 1] == '\r')) {
+                val = val[0 .. val.len - 1];
+            }
+            const len = @min(val.len, generic_name.len - 1);
+            @memcpy(generic_name[0..len], val[0..len]);
+            generic_name[len] = 0;
         }
     }
-    return if (icon_name[0] != 0) icon_name else null;
+    // Prefer Icon=, fallback to GenericName=
+    if (icon_name[0] != 0) return icon_name;
+    if (generic_name[0] != 0) return generic_name;
+    return null;
 }
 
 fn buildPath(buf: *[1024:0]u8, dir: []const u8, name: []const u8, ext: []const u8) bool {
@@ -277,7 +288,7 @@ pub fn fallback(app_id: [*:0]const u8, size: i32) c.BLImageCore {
     const app_id_slice = std.mem.sliceTo(app_id, 0);
     const hue = hueForString(app_id_slice);
 
-    // HSV to RGB (simplified)
+    // HSV to RGB
     const h6 = hue * 6;
     const sext: i32 = @intFromFloat(h6);
     const frac = h6 - @as(f64, @floatFromInt(sext));
@@ -291,45 +302,79 @@ pub fn fallback(app_id: [*:0]const u8, size: i32) c.BLImageCore {
     var g: f64 = undefined;
     var b: f64 = undefined;
     switch (@mod(sext, 6)) {
-        0 => {
-            r = v;
-            g = t;
-            b = p;
-        },
-        1 => {
-            r = q;
-            g = v;
-            b = p;
-        },
-        2 => {
-            r = p;
-            g = v;
-            b = t;
-        },
-        3 => {
-            r = p;
-            g = q;
-            b = v;
-        },
-        4 => {
-            r = t;
-            g = p;
-            b = v;
-        },
-        else => {
-            r = v;
-            g = p;
-            b = q;
-        },
+        0 => { r = v; g = t; b = p; },
+        1 => { r = q; g = v; b = p; },
+        2 => { r = p; g = v; b = t; },
+        3 => { r = p; g = q; b = v; },
+        4 => { r = t; g = p; b = v; },
+        else => { r = v; g = p; b = q; },
     }
 
-    // Draw circle background
     const color: u32 = @as(u32, 255) << 24 | @as(u32, @intFromFloat(r * 255)) << 16 | @as(u32, @intFromFloat(g * 255)) << 8 | @as(u32, @intFromFloat(b * 255));
 
-    // Fill circle using rect + clip (simplified)
+    // Draw circle using bezier path
+    const cx = @as(f64, @floatFromInt(size)) / 2.0;
+    const cy = @as(f64, @floatFromInt(size)) / 2.0;
+    const radius = @as(f64, @floatFromInt(size)) / 2.0 - 2.0;
+    const kappa = 0.5522847498;
+
+    var path = std.mem.zeroes(c.BLPathCore);
+    _ = c.bl_path_init(&path);
+
+    _ = c.bl_path_move_to(&path, cx + radius, cy);
+    _ = c.bl_path_cubic_to(&path, cx + radius, cy + radius * kappa, cx + radius * kappa, cy + radius, cx, cy + radius);
+    _ = c.bl_path_cubic_to(&path, cx - radius * kappa, cy + radius, cx - radius, cy + radius * kappa, cx - radius, cy);
+    _ = c.bl_path_cubic_to(&path, cx - radius, cy - radius * kappa, cx - radius * kappa, cy - radius, cx, cy - radius);
+    _ = c.bl_path_cubic_to(&path, cx + radius * kappa, cy - radius, cx + radius, cy - radius * kappa, cx + radius, cy);
+    _ = c.bl_path_close(&path);
+
     _ = c.bl_context_set_fill_style_rgba32(&ctx, color);
-    const rect = c.BLRect{ .x = 0, .y = 0, .w = @floatFromInt(size), .h = @floatFromInt(size) };
-    _ = c.bl_context_fill_rect_d(&ctx, &rect);
+    _ = c.bl_context_fill_path_d(&ctx, &c.BLPoint{ .x = 0, .y = 0 }, &path);
+    _ = c.bl_path_destroy(&path);
+
+    // Draw first letter (if we have a font loaded)
+    if (app_id_slice.len > 0) {
+        var letter: [8]u8 = undefined;
+        const first_char = std.ascii.toUpper(app_id_slice[0]);
+        letter[0] = first_char;
+        letter[1] = 0;
+
+        var gb = std.mem.zeroes(c.BLGlyphBufferCore);
+        _ = c.bl_glyph_buffer_init(&gb);
+        _ = c.bl_glyph_buffer_set_text(&gb, &letter, 1, @as(c_uint, 0));
+
+        // Try to load a font for the letter
+        var font_face = std.mem.zeroes(c.BLFontFaceCore);
+        var font = std.mem.zeroes(c.BLFontCore);
+        const font_paths = [_][]const u8{
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        };
+
+        for (font_paths) |fp| {
+            var path_buf: [256:0]u8 = undefined;
+            const path_z = std.fmt.bufPrintZ(&path_buf, "{s}", .{fp}) catch continue;
+            if (c.bl_font_face_create_from_file(&font_face, path_z.ptr, @as(c_int, 0)) == @as(c_uint, c.BL_SUCCESS)) {
+                const font_size = @as(f64, @floatFromInt(size)) * 0.55;
+                _ = c.bl_font_create_from_face(&font, &font_face, @floatCast(font_size));
+                _ = c.bl_font_shape(&font, &gb);
+
+                const glyph_run = c.bl_glyph_buffer_get_glyph_run(&gb);
+                _ = c.bl_context_set_fill_style_rgba32(&ctx, 0xFFFFFFFF); // white
+                _ = c.bl_context_fill_glyph_run_d(&ctx, &c.BLPoint{ .x = cx - 4, .y = cy + 4 }, &font, glyph_run);
+
+                _ = c.bl_font_destroy(&font);
+                _ = c.bl_font_face_destroy(&font_face);
+                break;
+            }
+        }
+
+        _ = c.bl_font_face_destroy(&font_face);
+        _ = c.bl_font_destroy(&font);
+        _ = c.bl_glyph_buffer_destroy(&gb);
+    }
 
     _ = c.bl_context_end(&ctx);
     _ = c.bl_context_destroy(&ctx);
