@@ -42,7 +42,6 @@ check_requirements() {
         local missing=()
         if ! command -v git >/dev/null 2>&1; then missing+=("git"); fi
         if ! command -v labwc >/dev/null 2>&1; then missing+=("labwc"); fi
-        if ! command -v sfwbar >/dev/null 2>&1; then missing+=("sfwbar"); fi
         if ! command -v fuzzel >/dev/null 2>&1; then missing+=("fuzzel"); fi
 
         if [ ${#missing[@]} -ne 0 ]; then
@@ -70,40 +69,48 @@ info "OCWS Shell Selection"
 
 echo -e "\n  ${CYAN}Shell:${NC}"
 echo -e "    1)  OCWS Double Panel     7)  LXQt Classic"
-echo -e "    2)  Crystal Dock           8)  LXQt Minimal"
-echo -e "    3)  DankMaterialShell      9)  LXQt Standalone"
-echo -e "    4)  Noctalia Shell        10)  LXQt Dual Panels"
-echo -e "    5)  OCWS Minimal          11)  LXQt Vertical"
-echo -e "    6)  LXQt Tworow           12)  LXQt Bottom"
-echo -e "   13)  FLTK Panel/Dock (C++)"
-echo -e "   14)  FLTK Panel/Dock (Zig)"
+echo -e "    2)  DankMaterialShell      8)  LXQt Minimal"
+echo -e "    3)  Noctalia Shell        9)  LXQt Standalone"
+echo -e "    4)  OCWS Minimal          10)  LXQt Dual Panels"
+echo -e "    5)  LXQt Tworow           11)  LXQt Vertical"
+echo -e "    6)  LXQt Bottom           12)  zigshell-cairo-pango (merged panel + dock)"
+echo -e "                               13)  zigshell-blend2d (merged panel + dock, Blend2D)"
 
-echo -n "  Choice [1-14] (default: 14): "
-read -r mode_choice
-
-case "${mode_choice:-14}" in
+echo -n "  Choice [1-13] (default: 13): "
+if [ "${NONINTERACTIVE:-0}" = "1" ]; then
+    echo "13 (auto)"
+    mode_choice="13"
+else
+    read -r mode_choice
+fi
+case "${mode_choice:-13}" in
     1)  MODE="doublepanel";      MODE_DESC="OCWS Double Panel" ;;
-    2)  MODE="crystaldock";      MODE_DESC="Crystal Dock" ;;
-    3)  MODE="dms";              MODE_DESC="DankMaterialShell" ;;
-    4)  MODE="noctalia";         MODE_DESC="Noctalia Shell" ;;
-    5)  MODE="minimal";          MODE_DESC="OCWS Minimal" ;;
-    6)  MODE="tworow";           MODE_DESC="LXQt Tworow" ;;
+    2)  MODE="dms";              MODE_DESC="DankMaterialShell" ;;
+    3)  MODE="noctalia";         MODE_DESC="Noctalia Shell" ;;
+    4)  MODE="minimal";          MODE_DESC="OCWS Minimal" ;;
+    5)  MODE="tworow";           MODE_DESC="LXQt Tworow" ;;
+    6)  MODE="lxqt-bottom";      MODE_DESC="LXQt Bottom" ;;
     7)  MODE="lxqt-classic";     MODE_DESC="LXQt Classic" ;;
     8)  MODE="lxqt-minimal";     MODE_DESC="LXQt Minimal" ;;
     9)  MODE="lxqt-standalone";  MODE_DESC="LXQt Standalone" ;;
     10) MODE="lxqt-dual-lxqt";   MODE_DESC="LXQt Dual Panels" ;;
     11) MODE="lxqt-vertical";    MODE_DESC="LXQt Vertical" ;;
-    12) MODE="lxqt-bottom";      MODE_DESC="LXQt Bottom" ;;
-    13) MODE="fltk-panel";       MODE_DESC="FLTK Panel/Dock (C++)" ;;
-    14) MODE="fltk-panel-zig";   MODE_DESC="FLTK Panel/Dock (Zig)" ;;
-    *)  MODE="fltk-panel-zig";   MODE_DESC="FLTK Panel/Dock (Zig)" ;;
+    12) MODE="zigshell-cairo-pango";   MODE_DESC="zigshell-cairo-pango (merged panel + dock)" ;;
+    13) MODE="zigshell-blend2d";       MODE_DESC="zigshell-blend2d (merged panel + dock, Blend2D)" ;;
+    *)  MODE="zigshell-blend2d";       MODE_DESC="zigshell-blend2d (merged panel + dock, Blend2D)" ;;
+    *)  MODE="zigshell-cairo-pango";   MODE_DESC="zigshell-cairo-pango (merged panel + dock)" ;;
 esac
 
 echo -e "  Selected: ${GREEN}${MODE_DESC}${NC}"
 
 echo -e "\n  ${CYAN}Launcher:${NC}  1) fuzzel (default)  2) rofi"
 echo -n "  Choice [1-2]: "
-read -r launcher_choice
+if [ "${NONINTERACTIVE:-0}" = "1" ]; then
+    echo "1 (auto)"
+    launcher_choice="1"
+else
+    read -r launcher_choice
+fi
 
 case "${launcher_choice:-1}" in
     2) LAUNCHER="rofi" ;;
@@ -113,11 +120,20 @@ esac
 echo -e "  Terminal: ${GREEN}foot${NC}"
 
 echo -e "\n  ${CYAN}Extras:${NC}"
-echo -n "    Tmux theme? [y/N]: " && read -r tmux_choice
-echo -n "    Neovim config? [y/N]: " && read -r nvim_choice
-echo -n "    Oh My Posh (prompt)? [y/N]: " && read -r posh_choice
-echo -n "    Antigravity CLI + MCP? [y/N]: " && read -r mcp_choice
-echo -n "    OpenCode CLI + MCP? [y/N]: " && read -r opencode_choice
+if [ "${NONINTERACTIVE:-0}" = "1" ]; then
+    echo "    Skipping extras (auto)"
+    tmux_choice="N"
+    nvim_choice="N"
+    posh_choice="N"
+    mcp_choice="N"
+    opencode_choice="N"
+else
+    echo -n "    Tmux theme? [y/N]: " && read -r tmux_choice
+    echo -n "    Neovim config? [y/N]: " && read -r nvim_choice
+    echo -n "    Oh My Posh (prompt)? [y/N]: " && read -r posh_choice
+    echo -n "    Antigravity CLI + MCP? [y/N]: " && read -r mcp_choice
+    echo -n "    OpenCode CLI + MCP? [y/N]: " && read -r opencode_choice
+fi
 
 USE_TMUX="${tmux_choice:-N}"
 USE_NVIM="${nvim_choice:-N}"
@@ -137,22 +153,25 @@ USE_OPENCODE="${opencode_choice:-N}"
 # -------------------------------------------------------------------
 
 # Determine which engines are needed for this selection
-CORE_ENGINES="labwc sfwbar $LAUNCHER"
+CORE_ENGINES="labwc $LAUNCHER"
 SHELL_ENGINE=""
 case "$MODE" in
     dms)        SHELL_ENGINE="dms" ;;
-    crystaldock) SHELL_ENGINE="crystal-dock" ;;
-    noctalia)   SHELL_ENGINE="sfwbar" ;;
+    noctalia)   SHELL_ENGINE="zigshell-cairo-pango" ;;
     tworow|lxqt-classic|lxqt-minimal|lxqt-standalone|lxqt-dual-lxqt|lxqt-vertical|lxqt-bottom)
                 SHELL_ENGINE="lxqt-panel" ;;
-    fltk-panel|fltk-panel-zig)
-        # Custom panel/dock; needs no external shell engine (sfwbar/lxqt).
+    zigshell-cairo-pango)
+        # Custom panel/dock; needs no external shell engine (zigshell-cairo-pango/lxqt).
+        SHELL_ENGINE=""
+        ;;
+    zigshell-blend2d)
+        # Custom panel/dock; needs no external shell engine.
         SHELL_ENGINE=""
         ;;
 esac
 
-# fltk-panel modes are self-contained — drop sfwbar from the core engine list.
-if [[ "$MODE" == fltk-panel* ]]; then
+# Self-contained shells — drop from the core engine list.
+if [[ "$MODE" == zigshell-cairo-pango || "$MODE" == zigshell-blend2d ]]; then
     CORE_ENGINES="labwc $LAUNCHER"
 fi
 
@@ -161,7 +180,7 @@ check_status() {
     command -v "$1" >/dev/null 2>&1 && echo "✓" || echo "✗"
 }
 
-echo -e "\n  ${CYAN}Engine:${NC} labwc=$(check_status labwc) sfwbar=$(check_status sfwbar) $LAUNCHER=$(check_status $LAUNCHER)"
+echo -e "\n  ${CYAN}Engine:${NC} labwc=$(check_status labwc) $LAUNCHER=$(check_status $LAUNCHER)"
 if [ -n "$SHELL_ENGINE" ]; then
     echo -e "          $SHELL_ENGINE=$(check_status $SHELL_ENGINE)"
 fi
@@ -186,15 +205,14 @@ case "${dep_choice:-1}" in
         need_build=""
         if [ "$MODE" = "dms" ]; then
             ! command -v dms >/dev/null 2>&1 && need_build="$need_build dms"
-        elif [ "$MODE" = "crystaldock" ]; then
-            ! command -v crystal-dock >/dev/null 2>&1 && need_build="$need_build crystal-dock"
         elif [[ "$MODE" == tworow || "$MODE" == lxqt-* ]]; then
             ! command -v lxqt-panel >/dev/null 2>&1 && need_build="$need_build lxqt-panel"
-        elif [ "$MODE" = "fltk-panel" ]; then
-            ! command -v fltk-cpp-shell >/dev/null 2>&1 && need_build="$need_build fltk-panel"
-        elif [ "$MODE" = "fltk-panel-zig" ]; then
+        elif [ "$MODE" = "zigshell-cairo-pango" ]; then
             ! command -v zig >/dev/null 2>&1 && need_build="$need_build zig"
-            ! command -v fltk-dock >/dev/null 2>&1 && need_build="$need_build fltk-panel-zig"
+            ! command -v zigshell-cairo-pango >/dev/null 2>&1 && need_build="$need_build zigshell-cairo-pango"
+        elif [ "$MODE" = "zigshell-blend2d" ]; then
+            ! command -v zig >/dev/null 2>&1 && need_build="$need_build zig"
+            ! command -v zigshell-blend2d >/dev/null 2>&1 && need_build="$need_build zigshell-blend2d"
         fi
 
         if [ -n "$need_build" ]; then
@@ -209,9 +227,6 @@ case "${dep_choice:-1}" in
                                 && bash "${SCRIPT_DIR}/build-ocws-core.sh" dms \
                                 || echo -e "  dms:    git clone --depth=1 https://github.com/DankShrine/dms.git && cd dms && make && sudo make install"
                             ;;
-                        crystal-dock)
-                            echo -e "  crystal-dock: see https://github.com/crystal-dock/crystal-dock"
-                            ;;
                         lxqt-panel)
                             if [ -f "${SCRIPT_DIR}/install-lxqt-panel-source.sh" ]; then
                                 bash "${SCRIPT_DIR}/install-lxqt-panel-source.sh"
@@ -219,22 +234,26 @@ case "${dep_choice:-1}" in
                                 echo -e "  lxqt-panel: run ./install-lxqt-panel-source.sh"
                             fi
                             ;;
-                        fltk-panel)
-                            if [ -f "${SCRIPT_DIR}/src/shells/fltk-panel/build-fltk-panel.sh" ]; then
-                                bash "${SCRIPT_DIR}/src/shells/fltk-panel/build-fltk-panel.sh"
-                            else
-                                echo -e "  fltk-panel: run ./src/shells/fltk-panel/build-fltk-panel.sh"
-                            fi
-                            ;;
-                        fltk-panel-zig)
-                            ZIG_DOCK_DIR="${SCRIPT_DIR}/src/shells/fltk-dock-zig"
+                        zigshell-cairo-pango)
+                            ZIG_DOCK_DIR="${SCRIPT_DIR}/src/shells/zigshell-cairo-pango"
                             if [ -f "$ZIG_DOCK_DIR/build.zig" ]; then
-                                info "Building FLTK Panel/Dock (Zig)..."
+                                info "Building zigshell-cairo-pango..."
                                 ( cd "$ZIG_DOCK_DIR" && zig build ) \
                                     && pass "Zig build complete" \
-                                    || warn "Zig build failed — run: cd src/shells/fltk-dock-zig && zig build"
+                                    || warn "Zig build failed — run: cd src/shells/zigshell-cairo-pango && zig build"
                             else
-                                echo -e "  fltk-panel-zig: source not found at src/shells/fltk-dock-zig/"
+                                echo -e "  zigshell-cairo-pango: source not found at src/shells/zigshell-cairo-pango/"
+                            fi
+                            ;;
+                        zigshell-blend2d)
+                            ZIG_BLEND_DIR="${SCRIPT_DIR}/src/shells/zigshell-blend2d"
+                            if [ -f "$ZIG_BLEND_DIR/build.zig" ]; then
+                                info "Building zigshell-blend2d..."
+                                ( cd "$ZIG_BLEND_DIR" && zig build ) \
+                                    && pass "Zig build complete" \
+                                    || warn "Zig build failed — run: cd src/shells/zigshell-blend2d && zig build"
+                            else
+                                echo -e "  zigshell-blend2d: source not found at src/shells/zigshell-blend2d/"
                             fi
                             ;;
                             zig)
@@ -248,17 +267,14 @@ case "${dep_choice:-1}" in
                         dms)
                             echo -e "  dms:    git clone --depth=1 https://github.com/DankShrine/dms.git && cd dms && make && sudo make install"
                             ;;
-                        crystal-dock)
-                            echo -e "  crystal-dock: see https://github.com/crystal-dock/crystal-dock"
-                            ;;
                         lxqt-panel)
                             echo -e "  lxqt-panel: ./install-lxqt-panel-source.sh"
                             ;;
-                        fltk-panel)
-                            echo -e "  fltk-panel: ./src/shells/fltk-panel/build-fltk-panel.sh"
+                        zigshell-cairo-pango)
+                            echo -e "  zigshell-cairo-pango: cd src/shells/zigshell-cairo-pango && zig build"
                             ;;
-                        fltk-panel-zig)
-                            echo -e "  fltk-panel-zig: cd src/shells/fltk-dock-zig && zig build"
+                        zigshell-blend2d)
+                            echo -e "  zigshell-blend2d: cd src/shells/zigshell-blend2d && zig build"
                             ;;
                             zig)
                                 echo -e "  zig: install from https://ziglang.org/download/"
@@ -271,7 +287,7 @@ case "${dep_choice:-1}" in
     *)
         echo -e "\n${YELLOW}⚠${NC} Skipping dependency installation."
         echo -e "  Required engines you'll need to install manually:"
-        for engine in labwc sfwbar $LAUNCHER $TERMINAL $SHELL_ENGINE; do
+        for engine in labwc $LAUNCHER $TERMINAL $SHELL_ENGINE; do
             [ -n "$engine" ] && ! command -v "$engine" >/dev/null 2>&1 && echo -e "    - $engine"
         done
         echo -e "  See: docs/distro-packages.md"
@@ -518,7 +534,6 @@ mkdir -p ~/.config/gtk-3.0 ~/.config/gtk-4.0
 mkdir -p ~/.local/bin/actions
 
 case "$MODE" in
-    crystaldock) mkdir -p ~/.config/crystal-dock ;;
     dms)         mkdir -p ~/.local/share/quickshell/dms
                  mkdir -p ~/.config/quickshell/dms ;;
     noctalia)    mkdir -p ~/.config/noctalia ;;
@@ -599,13 +614,13 @@ pass "Runtime scripts wired into PATH."
 # 4. Deploy OCWS Shell (supporting infrastructure for all modes)
 info "Deploying the OCWS Shell..."
 case "$MODE" in
-    doublepanel|crystaldock|tworow|minimal|lxqt-classic|lxqt-minimal|lxqt-vertical|lxqt-bottom)
+    doublepanel|tworow|minimal|lxqt-classic|lxqt-minimal|lxqt-vertical|lxqt-bottom)
         # Full OCWS bar config — includes modes/ and bars/ (required by
         # tworow/minimal so their .mode files and bar layouts deploy).
         rsync -a --exclude='user.config' "$SCRIPT_DIR/dotfiles/ocws/" ~/.config/ocws/ 2>/dev/null || cp -r "$SCRIPT_DIR/dotfiles/ocws/"* ~/.config/ocws/ 2>/dev/null || fail "Failed to deploy OCWS shell"
         ;;
     *)
-        # Supporting infrastructure only — no sfwbar bar config at all
+        # Supporting infrastructure only — no zigshell-cairo-pango bar config at all
         rsync -a --exclude='user.config' --exclude='modes/' --exclude='bars/' --exclude='css/ocws.css' "$SCRIPT_DIR/dotfiles/ocws/" ~/.config/ocws/ 2>/dev/null || cp -r "$SCRIPT_DIR/dotfiles/ocws/"* ~/.config/ocws/ 2>/dev/null || fail "Failed to deploy OCWS shell"
         ;;
 esac
@@ -619,23 +634,8 @@ echo "$LAUNCHER" > ~/.config/ocws/launcher
 echo "$TERMINAL" > ~/.config/ocws/terminal
 pass "OCWS infrastructure, mode ($MODE), launcher ($LAUNCHER), and terminal ($TERMINAL) synced."
 
-# Deploy standalone sfwbar theme (used outside OCWS modes)
-if [ -f "$SCRIPT_DIR/dotfiles/sfwbar/theme.css" ]; then
-    info "Deploying sfwbar theme..."
-    mkdir -p ~/.config/sfwbar
-    cp "$SCRIPT_DIR/dotfiles/sfwbar/theme.css" ~/.config/sfwbar/theme.css 2>/dev/null || true
-    pass "sfwbar theme.css synced."
-fi
-
 # 5. Deploy shell-specific configs
 case "$MODE" in
-    crystaldock)
-        if [ -d "$SCRIPT_DIR/dotfiles/crystal-dock" ]; then
-            info "Deploying crystal-dock configuration..."
-            rsync -a "$SCRIPT_DIR/dotfiles/crystal-dock/" ~/.config/crystal-dock/ 2>/dev/null || true
-            pass "crystal-dock config synced."
-        fi
-        ;;
     dms)
         if [ -d "$SCRIPT_DIR/dotfiles/DankMaterialShell" ]; then
             info "Deploying Dank Material Shell configuration..."
@@ -662,42 +662,48 @@ case "$MODE" in
             pass "Noctalia config synced."
         fi
         ;;
-    fltk-panel)
-        info "Deploying FLTK Panel/Dock (C++)..."
-        FLTK_PANEL_DIR="$SCRIPT_DIR/src/shells/fltk-panel"
-        # Build (FLTK is built if missing) and install binaries to ~/.local/bin
-        ( cd "$FLTK_PANEL_DIR" && bash ./build-fltk-panel.sh install ) \
-            || warn "fltk-panel build/install failed — run ./src/shells/fltk-panel/build-fltk-panel.sh manually"
-        # Ensure widget config is present
-        mkdir -p ~/.config/fltk-panel
-        if [ ! -f ~/.config/fltk-panel/widgets.conf ] && [ -f "$FLTK_PANEL_DIR/widgets.conf.example" ]; then
-            cp "$FLTK_PANEL_DIR/widgets.conf.example" ~/.config/fltk-panel/widgets.conf
-        fi
-        pass "FLTK Panel/Dock installed; launched by labwc autostart when mode=fltk-panel."
-        ;;
-    fltk-panel-zig)
-        info "Deploying FLTK Panel/Dock (Zig)..."
-        ZIG_DOCK_DIR="$SCRIPT_DIR/src/shells/fltk-dock-zig"
-        # Build with zig and install binaries to ~/.local/bin
+    zigshell-cairo-pango)
+        info "Deploying zigshell-cairo-pango..."
+        ZIG_DOCK_DIR="$SCRIPT_DIR/src/shells/zigshell-cairo-pango"
+        # Build with zig and install the merged binary to ~/.local/bin
         if [ -f "$ZIG_DOCK_DIR/build.zig" ]; then
             ( cd "$ZIG_DOCK_DIR" && zig build ) \
-                || warn "Zig build failed — run: cd src/shells/fltk-dock-zig && zig build"
-            # Install merged binary
-            if [ -f "$ZIG_DOCK_DIR/zig-out/bin/fltk-zig-shell" ]; then
-                install -Dm755 "$ZIG_DOCK_DIR/zig-out/bin/fltk-zig-shell" ~/.local/bin/fltk-zig-shell
-                pass "fltk-zig-shell installed."
-            fi
-            # Install legacy binaries too
-            if [ -f "$ZIG_DOCK_DIR/zig-out/bin/fltk-dock" ]; then
-                install -Dm755 "$ZIG_DOCK_DIR/zig-out/bin/fltk-dock" ~/.local/bin/fltk-dock
-            fi
-            if [ -f "$ZIG_DOCK_DIR/zig-out/bin/fltk-panel" ]; then
-                install -Dm755 "$ZIG_DOCK_DIR/zig-out/bin/fltk-panel" ~/.local/bin/fltk-panel
+                || warn "Zig build failed — run: cd src/shells/zigshell-cairo-pango && zig build"
+            if [ -f "$ZIG_DOCK_DIR/zig-out/bin/zigshell-cairo-pango" ]; then
+                install -Dm755 "$ZIG_DOCK_DIR/zig-out/bin/zigshell-cairo-pango" ~/.local/bin/zigshell-cairo-pango
+                pass "zigshell-cairo-pango installed."
             fi
         else
-            warn "Zig source not found at src/shells/fltk-dock-zig/"
+            warn "Zig source not found at src/shells/zigshell-cairo-pango/"
         fi
-        pass "FLTK Panel/Dock (Zig) installed; launched by labwc autostart when mode=fltk-panel-zig."
+        pass "zigshell-cairo-pango installed; launched by labwc autostart when mode=zigshell-cairo-pango."
+        ;;
+    zigshell-blend2d)
+        info "Deploying zigshell-blend2d..."
+        ZIG_BLEND_DIR="$SCRIPT_DIR/src/shells/zigshell-blend2d"
+        # Build with zig and install the merged binary to ~/.local/bin
+        if [ -f "$ZIG_BLEND_DIR/build.zig" ]; then
+            ( cd "$ZIG_BLEND_DIR" && zig build ) \
+                || warn "Zig build failed — run: cd src/shells/zigshell-blend2d && zig build"
+            if [ -f "$ZIG_BLEND_DIR/zig-out/bin/zigshell-blend2d" ]; then
+                install -Dm755 "$ZIG_BLEND_DIR/zig-out/bin/zigshell-blend2d" ~/.local/bin/zigshell-blend2d
+                # Install Blend2D shared library
+                if [ -f "$ZIG_BLEND_DIR/build/deps/blend2d/libblend2d.so" ]; then
+                    install -Dm755 "$ZIG_BLEND_DIR/build/deps/blend2d/libblend2d.so" ~/.local/lib/libblend2d.so
+                    pass "libblend2d.so installed."
+                fi
+                # Ensure LD_LIBRARY_PATH includes ~/.local/lib
+                BASHRC="$HOME/.bashrc"
+                if [ -f "$BASHRC" ] && ! grep -q '\.local/lib' "$BASHRC" 2>/dev/null; then
+                    echo 'export LD_LIBRARY_PATH="$HOME/.local/lib:${LD_LIBRARY_PATH:-}"' >> "$BASHRC"
+                    pass "LD_LIBRARY_PATH added to .bashrc"
+                fi
+                pass "zigshell-blend2d installed."
+            fi
+        else
+            warn "Zig source not found at src/shells/zigshell-blend2d/"
+        fi
+        pass "zigshell-blend2d installed; launched by labwc autostart when mode=zigshell-blend2d."
         ;;
 esac
 
