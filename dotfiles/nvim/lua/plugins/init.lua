@@ -54,6 +54,14 @@ local function load_shared_plugins()
     end
   end
 
+  -- Shared plugins
+  local ok_shared, shared_plugins = pcall(require, "plugins.shared")
+  if ok_shared and shared_plugins then
+    for _, plugin in ipairs(shared_plugins) do
+      table.insert(shared, plugin)
+    end
+  end
+
   return shared
 end
 
